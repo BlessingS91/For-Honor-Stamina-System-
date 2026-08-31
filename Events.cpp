@@ -1,6 +1,7 @@
 #include "Events.h"
 
 #include "Stamina.h"
+#include "StaminaDamage.h"
 
 namespace Stamina {
 
@@ -69,6 +70,10 @@ namespace Stamina {
         }
 
         const float attackCost = GetAttackCost(actor, attackObject, powerAttack, leftSwing);
+
+        const float damageMultiplier = StaminaDamage::GetAttackDamageMultiplier(actor);
+        logger::info("Attack: {} | Damage Multiplier={:.3f}", actor->GetName(), damageMultiplier);
+
         bool willExhaust = false;
 
         // Check whether this attack exceeds the player's current stamina.

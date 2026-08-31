@@ -3,7 +3,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 # Set your project name. This will be the name of your SKSE .dll file.
-project(HelloWorld VERSION 0.0.1 LANGUAGES CXX)
+project(ForHonorStamina VERSION 0.0.1 LANGUAGES CXX)
 
 # #
 # YOU DO NOT NEED TO EDIT ANYTHING BELOW HERE
@@ -36,7 +36,8 @@ add_commonlibsse_plugin(${PROJECT_NAME} SOURCES
         plugin.cpp
         Stamina.cpp
         Events.cpp
-        Hooks/Hooks.cpp) 
+        Hooks/Hooks.cpp
+        StaminaDamage.cpp) 
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23) # <--- use C++23 standard
 target_precompile_headers(${PROJECT_NAME} PRIVATE PCH.h) # <--- PCH.h is required!
 

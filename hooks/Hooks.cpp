@@ -1,6 +1,7 @@
 #include "Hooks.h"
 
 #include "../Stamina.h"
+#include "../StaminaDamage.h"
 
 namespace Stamina::Hooks {
 
@@ -63,12 +64,20 @@ namespace Stamina::Hooks {
         }
 
         void Update(RE::Actor* actor, float delta) {
-            if (_Update.address()) {
-                _Update(actor, delta);
-            } else {
-                logger::critical("PLAYER UPDATE: original function is NULL!");
+            if (!_Update.address()) {
+                logger::critical("ACTOR UPDATE: original function is NULL!");
                 return;
             }
+
+            _Update(actor, delta);
+
+            if (!actor) {
+                logger::warn("Actor::Update received NULL actor!");
+                return;
+            }
+
+            // Every actor.
+            StaminaDamage::Update(actor);
 
             auto* player = RE::PlayerCharacter::GetSingleton();
             if (!player || actor != player) {
@@ -77,10 +86,12 @@ namespace Stamina::Hooks {
 
             auto* actorValueOwner = player->AsActorValueOwner();
             if (!actorValueOwner) {
+                logger::warn("Player AsActorValueOwner() returned NULL.");
                 return;
             }
 
             const bool outOfStamina = HasOutOfStaminaEffect(player);
+
             const float staminaRateMult = actorValueOwner->GetActorValue(RE::ActorValue::kStaminaRateMult);
 
             if (outOfStamina) {
@@ -88,31 +99,40 @@ namespace Stamina::Hooks {
                     cachedStaminaRateMult = staminaRateMult;
                     staminaRateMultCached = true;
 
-                    logger::info("Out of stamina: disabling stamina regeneration.");
+                    logger::info("Out of stamina START: cached staminaRateMult={:.3f}", cachedStaminaRateMult);
                 }
 
                 if (staminaRateMult != 0.0f) {
                     actorValueOwner->SetActorValue(RE::ActorValue::kStaminaRateMult, 0.0f);
                 }
-
             } else if (staminaRateMultCached) {
                 actorValueOwner->SetActorValue(RE::ActorValue::kStaminaRateMult, cachedStaminaRateMult);
 
                 const float maxStamina = actorValueOwner->GetPermanentActorValue(RE::ActorValue::kStamina);
+
                 const float recoveryAmount = maxStamina * kStaminaRecoveryPercent;
 
-                auto* spell = RE::TESDataHandler::GetSingleton()->LookupForm<RE::SpellItem>(kStaminaRecoverySpell,
-                                                                                            kStaminaRecoveryPlugin);
+                logger::info("Out of stamina END: restoring regen={:.3f}, recovery={:.1f}", cachedStaminaRateMult,
+                             recoveryAmount);
 
-                if (spell) {
-                    if (auto* caster = player->GetMagicCaster(RE::MagicSystem::CastingSource::kInstant)) {
-                        caster->CastSpellImmediate(spell, true, player, 1.0f, false, recoveryAmount, player);
+                auto* dataHandler = RE::TESDataHandler::GetSingleton();
+
+                if (dataHandler) {
+                    auto* spell = dataHandler->LookupForm<RE::SpellItem>(kStaminaRecoverySpell, kStaminaRecoveryPlugin);
+
+                    if (spell) {
+                        if (auto* caster = player->GetMagicCaster(RE::MagicSystem::CastingSource::kInstant)) {
+                            caster->CastSpellImmediate(reinterpret_cast<RE::MagicItem*>(spell), true, player, 1.0f,
+                                                       false, recoveryAmount, player);
+
+                            logger::info("Stamina recovery spell cast: amount={:.1f}", recoveryAmount);
+                        } else {
+                            logger::error("Failed to obtain instant MagicCaster.");
+                        }
+                    } else {
+                        logger::error("Failed to find Stamina Recovery spell.");
                     }
-                } else {
-                    logger::error("Failed to find Stamina Recovery spell.");
                 }
-
-                logger::info("Out of stamina cleared: restoring regen and recovering {:.1f} stamina.", recoveryAmount);
 
                 staminaRateMultCached = false;
                 cachedStaminaRateMult = 0.0f;
@@ -124,45 +144,49 @@ namespace Stamina::Hooks {
         auto* player = RE::PlayerCharacter::GetSingleton();
 
         if (!player) {
-            logger::critical("PlayerCharacter::GetSingleton() returned NULL!");
+            logger::critical("PlayerCharacter singleton is NULL.");
             return;
         }
 
-        // Get the vtable pointer directly from the actual player object.
         const auto actualVTable = *reinterpret_cast<std::uintptr_t*>(player);
 
         if (!actualVTable) {
-            logger::critical("Actual PlayerCharacter vtable is NULL!");
+            logger::critical("Player actual vtable is NULL.");
             return;
         }
 
-        const auto updateSlot = actualVTable + kUpdateIndex * sizeof(std::uintptr_t);
+        logger::info("Player actual vtable = {:X}", actualVTable);
 
-        const auto original = *reinterpret_cast<std::uintptr_t*>(updateSlot);
+        const auto slotAddress = actualVTable + kUpdateIndex * sizeof(std::uintptr_t);
 
-        if (!original) {
-            logger::critical("Player Update slot is NULL!");
+        const auto originalAddress = *reinterpret_cast<std::uintptr_t*>(slotAddress);
+
+        logger::info("Player Update slot {:X}: address={:X}", kUpdateIndex, originalAddress);
+
+        if (!originalAddress) {
+            logger::critical("Player Actor::Update slot is NULL.");
             return;
         }
 
-        REL::Relocation<std::uintptr_t> vtable{actualVTable};
+        REL::Relocation<std::uintptr_t> playerVTable{actualVTable};
 
-        _Update = vtable.write_vfunc(kUpdateIndex, reinterpret_cast<std::uintptr_t>(&Update));
+        _Update = playerVTable.write_vfunc(kUpdateIndex, reinterpret_cast<std::uintptr_t>(&Update));
 
         if (!_Update.address()) {
-            logger::critical("Failed to install PlayerCharacter::Update hook.");
+            logger::critical("Failed to install Player Actor::Update hook.");
             return;
         }
 
-        const auto hookAddress = reinterpret_cast<std::uintptr_t>(&Update);
+        const auto after = *reinterpret_cast<std::uintptr_t*>(slotAddress);
 
-        const auto after = *reinterpret_cast<std::uintptr_t*>(updateSlot);
+        logger::info("Player Update slot after patch = {:X}, hook = {:X}", after,
+                     reinterpret_cast<std::uintptr_t>(&Update));
 
-        if (after != hookAddress) {
-            logger::critical("PlayerCharacter::Update hook verification failed.");
+        if (after != reinterpret_cast<std::uintptr_t>(&Update)) {
+            logger::critical("Player Actor::Update hook verification FAILED.");
             return;
         }
 
-        logger::info("PlayerCharacter::Update hook installed.");
+        logger::info("Player Actor::Update hook installed successfully.");
     }
 }
