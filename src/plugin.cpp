@@ -1,5 +1,6 @@
-
 #include "Events.h"
+#include "Menu.h"
+#include "Settings.h"
 #include "Stamina.h"
 
 SKSEPluginLoad(const SKSE::LoadInterface* skse) {
@@ -12,6 +13,7 @@ SKSEPluginLoad(const SKSE::LoadInterface* skse) {
     SKSE::GetMessagingInterface()->RegisterListener([](SKSE::MessagingInterface::Message* message) {
         if (message->type == SKSE::MessagingInterface::kDataLoaded) {
             Stamina::Initialize();
+            Menu::Install();
         }
     });
 

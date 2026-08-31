@@ -1,5 +1,6 @@
 #include "Hooks.h"
 
+#include "../Settings.h"
 #include "../Stamina.h"
 #include "../StaminaDamage.h"
 
@@ -17,8 +18,6 @@ namespace Stamina::Hooks {
 
         constexpr RE::FormID kStaminaRecoverySpell = 0xA57;
         constexpr auto kStaminaRecoveryPlugin = "For Honor Stamina System.esp";
-
-        constexpr float kStaminaRecoveryPercent = 0.33f;
 
         bool HasOutOfStaminaEffect(RE::Actor* actor) {
             if (!actor) {
@@ -110,7 +109,7 @@ namespace Stamina::Hooks {
 
                 const float maxStamina = actorValueOwner->GetPermanentActorValue(RE::ActorValue::kStamina);
 
-                const float recoveryAmount = maxStamina * kStaminaRecoveryPercent;
+                const float recoveryAmount = maxStamina * Settings::exhaustionRecoveryPercent;
 
                 logger::info("Out of stamina END: restoring regen={:.3f}, recovery={:.1f}", cachedStaminaRateMult,
                              recoveryAmount);

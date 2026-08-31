@@ -32,14 +32,23 @@ endif()
 
 # Setup your SKSE plugin as an SKSE plugin!
 find_package(CommonLibSSE CONFIG REQUIRED)
-add_commonlibsse_plugin(${PROJECT_NAME} SOURCES 
-        plugin.cpp
-        Stamina.cpp
-        Events.cpp
-        Hooks/Hooks.cpp
-        StaminaDamage.cpp) 
-target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23) # <--- use C++23 standard
-target_precompile_headers(${PROJECT_NAME} PRIVATE PCH.h) # <--- PCH.h is required!
+add_commonlibsse_plugin(${PROJECT_NAME} SOURCES
+    src/plugin.cpp
+    src/Stamina.cpp
+    src/Events.cpp
+    src/Hooks/Hooks.cpp
+    src/StaminaDamage.cpp
+    src/Settings.cpp
+    src/Menu.cpp)
+
+target_include_directories(${PROJECT_NAME} PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Includes")
+
+target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23)
+
+target_precompile_headers(${PROJECT_NAME} PRIVATE
+    src/PCH.h)
 
 # When your SKSE .dll is compiled, this will automatically copy the .dll into your mods folder.
 # Only works if you configure DEPLOY_ROOT above (or set the SKYRIM_MODS_FOLDER environment variable)

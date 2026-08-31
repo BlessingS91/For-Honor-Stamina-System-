@@ -1,5 +1,7 @@
 #include "StaminaDamage.h"
 
+#include "Settings.h"
+
 namespace StaminaDamage {
 
     namespace {
@@ -36,12 +38,10 @@ namespace StaminaDamage {
         float GetStaminaMultiplier(RE::Actor* actor) {
             const float staminaPercent = GetStaminaPercent(actor);
 
-            // 0%   = 0.85
-            // 50%  = 1.00
-            // 100% = 1.15
-            return 0.85f + (staminaPercent * 0.30f);
+            return Settings::staminaCosts.minStaminaDamage +
+                   (staminaPercent *
+                    (Settings::staminaCosts.maxStaminaDamage - Settings::staminaCosts.minStaminaDamage));
         }
-
     }
 
     void Update(RE::Actor* actor) {
@@ -50,12 +50,10 @@ namespace StaminaDamage {
         }
 
         const float staminaPercent = GetStaminaPercent(actor);
-        const float staminaMultiplier = 0.85f + (staminaPercent * 0.30f);
+        const float staminaMultiplier = GetStaminaMultiplier(actor);
 
         auto& data = modifiers[actor];
 
-        // Only log when stamina changes enough to avoid flooding the log
-        // every frame.
         if (data.lastStaminaPercent < 0.0f || std::abs(staminaPercent - data.lastStaminaPercent) >= 0.01f) {
             data.lastStaminaPercent = staminaPercent;
         }
@@ -72,9 +70,7 @@ namespace StaminaDamage {
         auto it = modifiers.find(actor);
 
         if (it == modifiers.end()) {
-            const float multiplier = GetStaminaMultiplier(actor);
-
-            return multiplier;
+            return GetStaminaMultiplier(actor);
         }
 
         return it->second.attackDamage;
@@ -88,9 +84,7 @@ namespace StaminaDamage {
         auto it = modifiers.find(actor);
 
         if (it == modifiers.end()) {
-            const float multiplier = GetStaminaMultiplier(actor);
-
-            return multiplier;
+            return GetStaminaMultiplier(actor);
         }
 
         return it->second.targetStagger;

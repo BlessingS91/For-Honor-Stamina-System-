@@ -1,11 +1,15 @@
 #include "Stamina.h"
 
+#include "Settings.h"
 #include "hooks/Hooks.h"
 
 namespace Stamina {
 
     void Initialize() {
+        Settings::Load();
+
         Hooks::Install();
+
         logger::info("Stamina hooks initialized.");
     }
 
@@ -17,13 +21,14 @@ namespace Stamina {
         constexpr RE::FormID kExhaustionRecoverySpell = 0xA57;
         constexpr auto kExhaustionRecoveryPlugin = "For Honor Stamina System.esp";
 
+        constexpr RE::FormID kExhaustionRecoveryEffect = 0xA58;
+        constexpr auto kExhaustionRecoveryEffectPlugin = "For Honor Stamina System.esp";
+
         constexpr RE::FormID kExhaustedSpell = 0x800;
         constexpr auto kExhaustedPlugin = "For Honor Stamina System.esp";
 
         constexpr RE::FormID kOutOfStaminaEffect = 0x80C;
         constexpr auto kOutOfStaminaEffectPlugin = "For Honor Stamina System.esp";
-
-        constexpr float kExhaustionRecoveryPercent = 0.33f;
     }
 
     float GetAttackCost(RE::Actor* actor, RE::TESForm* attackObject, bool powerAttack, bool leftSwing) {
@@ -31,95 +36,106 @@ namespace Stamina {
             return 0.0f;
         }
 
+        float shieldMultiplier = 1.0f;
         std::string weaponType = "HandToHandMelee";
 
         // The attackObject is the object in the hand performing the attack.
         if (attackObject) {
             // Check for a shield.
-            if (auto* armor = attackObject->As<RE::TESObjectARMO>()) {
+            if (attackObject->formType == RE::FormType::Armor) {
+                auto* armor = static_cast<RE::TESObjectARMO*>(attackObject);
                 for (int index = armor->numKeywords - 1; index >= 0; --index) {
                     auto* keyword = armor->keywords[index];
-
                     if (!keyword) {
                         continue;
                     }
 
-                    const std::string editorID = keyword->formEditorID.c_str();
+                    const std::string_view editorID = keyword->formEditorID.c_str();
 
                     if (editorID == "ArmorTypeShield") {
                         weaponType = "Shield";
-                        break;
+                    }
+                    if (editorID == "ArmorSmallShield") {
+                        shieldMultiplier = 1.0f;
+                    }
+                    if (editorID == "ArmorLight") {
+                        shieldMultiplier = 1.1f;
+                    }
+                    if (editorID == "ArmorHeavy") {
+                        shieldMultiplier = 1.2f;
+                    }
+                    if (editorID == "ArmorLargeShield") {
+                        shieldMultiplier = 1.4f;
                     }
                 }
-
-            } else if (auto* weapon = attackObject->As<RE::TESObjectWEAP>()) {
+            } else if (attackObject->formType == RE::FormType::Weapon) {
+                auto* weapon = static_cast<RE::TESObjectWEAP*>(attackObject);
                 // Find the weapon type keyword.
                 for (int index = weapon->numKeywords - 1; index >= 0; --index) {
                     auto* keyword = weapon->keywords[index];
-
                     if (!keyword) {
                         continue;
                     }
 
-                    const std::string editorID = keyword->formEditorID.c_str();
+                    const std::string_view editorID = keyword->formEditorID.c_str();
                     constexpr std::string_view prefix = "WeapType";
 
                     if (editorID.rfind(prefix, 0) != 0) {
                         continue;
                     }
 
-                    weaponType = editorID.substr(prefix.length());
+                    weaponType = std::string(editorID.substr(prefix.length()));
                     break;
                 }
             }
         }
 
-        // Unarmed/default.
-        float cost = 10.0f;
+        float cost = Settings::staminaCosts.unarmed;
+        if (weaponType == "HandToHandMelee") {
+            if (auto* gauntlets = actor->GetWornArmor(RE::BIPED_MODEL::BipedObjectSlot::kHands)) {
+                for (int index = gauntlets->numKeywords - 1; index >= 0; --index) {
+                    auto* keyword = gauntlets->keywords[index];
+                    if (!keyword) {
+                        continue;
+                    }
 
-        if (weaponType == "Dagger") {
-            cost = 12.0f;
-        } else if (weaponType == "Sword") {
-            cost = 14.0f;
-        } else if (weaponType == "Greatsword") {
-            cost = 28.0f;
-        } else if (weaponType == "WarAxe") {
-            cost = 15.0f;
-        } else if (weaponType == "Battleaxe") {
-            cost = 30.0f;
-        } else if (weaponType == "Mace") {
-            cost = 16.0f;
-        } else if (weaponType == "Warhammer") {
-            cost = 32.0f;
-        } else if (weaponType == "Claw") {
-            cost = 10.0f;
-        } else if (weaponType == "Katana") {
-            cost = 16.0f;
-        } else if (weaponType == "Pike") {
-            cost = 28.0f;
-        } else if (weaponType == "Spear") {
-            cost = 26.0f;
-        } else if (weaponType == "QtrStaff") {
-            cost = 24.0f;
-        } else if (weaponType == "Rapier") {
-            cost = 13.0f;
-        } else if (weaponType == "Javelin") {
-            cost = 15.0f;
-        } else if (weaponType == "Lance") {
-            cost = 30.0f;
-        } else if (weaponType == "LightGreatSword") {
-            cost = 26.0f;
-        } else if (weaponType == "Claymore") {
-            cost = 30.0f;
-        } else if (weaponType == "Whip") {
-            cost = 10.0f;
-        } else if (weaponType == "Shield") {
-            cost = 12.0f;
+                    const std::string_view editorID = keyword->formEditorID.c_str();
+
+                    if (editorID == "ArmorHeavy") {
+                        cost *= 1.20f;
+                        break;
+                    }
+
+                    if (editorID == "ArmorLight") {
+                        cost *= 1.10f;
+                        break;
+                    }
+                }
+            }
         }
 
-        // Power attacks cost twice as much.
+        if (weaponType == "Dagger") {
+            cost = Settings::staminaCosts.dagger;
+        } else if (weaponType == "Sword") {
+            cost = Settings::staminaCosts.sword;
+        } else if (weaponType == "Greatsword") {
+            cost = Settings::staminaCosts.greatsword;
+        } else if (weaponType == "WarAxe") {
+            cost = Settings::staminaCosts.warAxe;
+        } else if (weaponType == "Battleaxe") {
+            cost = Settings::staminaCosts.battleaxe;
+        } else if (weaponType == "Mace") {
+            cost = Settings::staminaCosts.mace;
+        } else if (weaponType == "Warhammer") {
+            cost = Settings::staminaCosts.warhammer;
+        } else if (weaponType == "Shield") {
+            cost = Settings::staminaCosts.shield;
+            cost *= shieldMultiplier;
+        }
+
+        // Power attacks use the configurable multiplier.
         if (powerAttack) {
-            cost *= 2.0f;
+            cost *= Settings::staminaCosts.powerAttackMultiplier;
         }
 
         return cost;
@@ -158,7 +174,6 @@ namespace Stamina {
 
         caster->CastSpellImmediate(spell, true, actor, 1.0f, false, cost, actor);
     }
-
     void ProcessExhausted(RE::Actor* actor) {
         if (!actor) {
             return;
@@ -176,7 +191,7 @@ namespace Stamina {
             return;
         }
 
-        // Do not cast Exhausted again while Out of Stamina Effect is active.
+        // Do not cast Exhausted if Out of Stamina is already active.
         auto* outOfStaminaEffect = RE::TESDataHandler::GetSingleton()->LookupForm<RE::EffectSetting>(
             kOutOfStaminaEffect, kOutOfStaminaEffectPlugin);
 
@@ -186,7 +201,21 @@ namespace Stamina {
         }
 
         if (magicTarget->HasMagicEffect(outOfStaminaEffect)) {
-            logger::info("Already in OOS State.");
+            logger::info("Already in OOS State; skipping Exhausted.");
+            return;
+        }
+
+        // Do not cast Exhausted while Exhaustion Recovery is active.
+        auto* exhaustionRecoveryEffect = RE::TESDataHandler::GetSingleton()->LookupForm<RE::EffectSetting>(
+            kExhaustionRecoveryEffect, kExhaustionRecoveryEffectPlugin);
+
+        if (!exhaustionRecoveryEffect) {
+            logger::error("Failed to find Exhaustion Recovery magic effect.");
+            return;
+        }
+
+        if (magicTarget->HasMagicEffect(exhaustionRecoveryEffect)) {
+            logger::info("Exhaustion Recovery is active; skipping Exhausted.");
             return;
         }
 
@@ -198,7 +227,6 @@ namespace Stamina {
         }
 
         auto* actorValueOwner = actor->AsActorValueOwner();
-
         if (!actorValueOwner) {
             return;
         }
@@ -244,7 +272,7 @@ namespace Stamina {
         }
 
         const float maxStamina = actorValueOwner->GetPermanentActorValue(RE::ActorValue::kStamina);
-        const float recoveryAmount = maxStamina * kExhaustionRecoveryPercent;
+        const float recoveryAmount = maxStamina * Settings::exhaustionRecoveryPercent;
 
         if (recoveryAmount <= 0.0f) {
             return;
@@ -265,31 +293,44 @@ namespace Stamina {
         }
 
         auto* actorValueOwner = actor->AsActorValueOwner();
-
         if (!actorValueOwner) {
             return;
         }
 
+        const char* weaponSkillType = "None";
+        const char* armorSkillType = "Alteration";
         // Right-hand weapon.
         if (auto* attackObject = actor->GetEquippedObject(false)) {
-            if (auto* weapon = attackObject->As<RE::TESObjectWEAP>()) {
-                switch (weapon->GetWeaponType()) {
-                    case RE::WEAPON_TYPE::kOneHandSword:
-                    case RE::WEAPON_TYPE::kOneHandDagger:
-                    case RE::WEAPON_TYPE::kOneHandAxe:
-                    case RE::WEAPON_TYPE::kOneHandMace:
-                        weaponSkill = actorValueOwner->GetActorValue(RE::ActorValue::kOneHanded);
-                        break;
+            if (attackObject->formType == RE::FormType::Weapon) {
+                auto* weapon = static_cast<RE::TESObjectWEAP*>(attackObject);
 
-                    case RE::WEAPON_TYPE::kTwoHandSword:
-                    case RE::WEAPON_TYPE::kTwoHandAxe:
-                        weaponSkill = actorValueOwner->GetActorValue(RE::ActorValue::kTwoHanded);
-                        break;
+                const auto weaponType = static_cast<int>(weapon->GetWeaponType());
 
-                    default:
-                        break;
+                if (weaponType == static_cast<int>(RE::WEAPON_TYPE::kOneHandSword) ||
+                    weaponType == static_cast<int>(RE::WEAPON_TYPE::kOneHandDagger) ||
+                    weaponType == static_cast<int>(RE::WEAPON_TYPE::kOneHandAxe) ||
+                    weaponType == static_cast<int>(RE::WEAPON_TYPE::kOneHandMace)) {
+                    weaponSkillType = "OneHanded";
+                    weaponSkill = actorValueOwner->GetActorValue(RE::ActorValue::kOneHanded);
+
+                } else if (weaponType == static_cast<int>(RE::WEAPON_TYPE::kTwoHandSword) ||
+                           weaponType == static_cast<int>(RE::WEAPON_TYPE::kTwoHandAxe)) {
+                    weaponSkillType = "TwoHanded";
+                    weaponSkill = actorValueOwner->GetActorValue(RE::ActorValue::kTwoHanded);
+
+                } else {
+                    weaponSkillType = "Unarmed";
+                    weaponSkill = actorValueOwner->GetActorValue(Settings::unarmedSkillActorValue);
                 }
+
+            } else {
+                weaponSkillType = "Unarmed";
+                weaponSkill = actorValueOwner->GetActorValue(Settings::unarmedSkillActorValue);
             }
+
+        } else {
+            weaponSkillType = "Unarmed";
+            weaponSkill = actorValueOwner->GetActorValue(Settings::unarmedSkillActorValue);
         }
 
         // Chest armor.
@@ -318,19 +359,35 @@ namespace Stamina {
             }
 
             if (isLight) {
+                armorSkillType = "LightArmor";
                 armorSkill = actorValueOwner->GetActorValue(RE::ActorValue::kLightArmor);
             } else if (isHeavy) {
+                armorSkillType = "HeavyArmor";
                 armorSkill = actorValueOwner->GetActorValue(RE::ActorValue::kHeavyArmor);
             } else {
+                armorSkillType = "Alteration";
                 armorSkill = actorValueOwner->GetActorValue(RE::ActorValue::kAlteration);
             }
         } else {
+            // No chest armor = Alteration.
+            armorSkillType = "Alteration";
             armorSkill = actorValueOwner->GetActorValue(RE::ActorValue::kAlteration);
         }
+
+        logger::info(
+            "Relevant Skills: Actor={}, "
+            "Weapon=[{}: {:.1f}], "
+            "Armor=[{}: {:.1f}]",
+            actor->GetName(), weaponSkillType, weaponSkill, armorSkillType, armorSkill);
     }
 
     float CalculateExhaustionValue(RE::Actor* actor) {
         if (!actor) {
+            return 0.0f;
+        }
+
+        auto* actorValueOwner = actor->AsActorValueOwner();
+        if (!actorValueOwner) {
             return 0.0f;
         }
 
@@ -346,9 +403,9 @@ namespace Stamina {
         const float combinedSkill = (weaponPercent + armorPercent) * 50.0f;
 
         logger::info(
-            "Exhaustion Scaling: Actor={}, WeaponSkill={:.1f}, "
-            "ArmorSkill={:.1f}, Variable10={:.1f}",
-            actor->GetName(), weaponSkill, armorSkill, combinedSkill);
+            "Exhaustion Scaling: Actor={}, "
+            "WeaponSkill={:.1f}, ArmorSkill={:.1f}, Variable10={:.1f}",
+            *actor->GetName(), weaponSkill, armorSkill, combinedSkill);
 
         return combinedSkill;
     }
