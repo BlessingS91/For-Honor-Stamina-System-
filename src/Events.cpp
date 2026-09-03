@@ -71,7 +71,7 @@ namespace Stamina {
 
         const float attackCost = GetAttackCost(actor, attackObject, powerAttack, leftSwing);
 
-        const float damageMultiplier = StaminaDamage::GetAttackDamageMultiplier(actor);
+        const float damageMultiplier = StaminaDamage::GetStaminaMultiplier(actor);
         logger::info("Attack: {} | Damage Multiplier={:.3f}", actor->GetName(), damageMultiplier);
 
         bool willExhaust = false;

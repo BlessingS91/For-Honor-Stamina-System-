@@ -22,7 +22,7 @@ namespace PrecisionHandler {
             return result;
         }
 
-        const float damageMultiplier = StaminaDamage::GetAttackDamageMultiplier(attacker);
+        const float damageMultiplier = StaminaDamage::GetStaminaMultiplier(attacker);
 
         if (damageMultiplier == 1.0f) {
             return result;

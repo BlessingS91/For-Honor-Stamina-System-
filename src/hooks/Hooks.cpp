@@ -2,7 +2,6 @@
 
 #include "../Settings.h"
 #include "../Stamina.h"
-#include "../StaminaDamage.h"
 
 namespace Stamina::Hooks {
 
@@ -71,12 +70,8 @@ namespace Stamina::Hooks {
             _Update(actor, delta);
 
             if (!actor) {
-                logger::warn("Actor::Update received NULL actor!");
                 return;
             }
-
-            // Every actor.
-            StaminaDamage::Update(actor);
 
             auto* player = RE::PlayerCharacter::GetSingleton();
             if (!player || actor != player) {
@@ -90,10 +85,10 @@ namespace Stamina::Hooks {
             }
 
             const bool outOfStamina = HasOutOfStaminaEffect(player);
-
             const float staminaRateMult = actorValueOwner->GetActorValue(RE::ActorValue::kStaminaRateMult);
 
             if (outOfStamina) {
+                // First frame of exhaustion.
                 if (!staminaRateMultCached) {
                     cachedStaminaRateMult = staminaRateMult;
                     staminaRateMultCached = true;
@@ -101,10 +96,16 @@ namespace Stamina::Hooks {
                     logger::info("Out of stamina START: cached staminaRateMult={:.3f}", cachedStaminaRateMult);
                 }
 
+                // Prevent stamina regeneration while exhausted.
                 if (staminaRateMult != 0.0f) {
                     actorValueOwner->SetActorValue(RE::ActorValue::kStaminaRateMult, 0.0f);
                 }
-            } else if (staminaRateMultCached) {
+
+                return;
+            }
+
+            // We were exhausted, but the effect has now ended.
+            if (staminaRateMultCached) {
                 actorValueOwner->SetActorValue(RE::ActorValue::kStaminaRateMult, cachedStaminaRateMult);
 
                 const float maxStamina = actorValueOwner->GetPermanentActorValue(RE::ActorValue::kStamina);
@@ -120,7 +121,9 @@ namespace Stamina::Hooks {
                     auto* spell = dataHandler->LookupForm<RE::SpellItem>(kStaminaRecoverySpell, kStaminaRecoveryPlugin);
 
                     if (spell) {
-                        if (auto* caster = player->GetMagicCaster(RE::MagicSystem::CastingSource::kInstant)) {
+                        auto* caster = player->GetMagicCaster(RE::MagicSystem::CastingSource::kInstant);
+
+                        if (caster) {
                             caster->CastSpellImmediate(reinterpret_cast<RE::MagicItem*>(spell), true, player, 1.0f,
                                                        false, recoveryAmount, player);
 
@@ -133,6 +136,7 @@ namespace Stamina::Hooks {
                     }
                 }
 
+                // Clear the state so recovery only happens once.
                 staminaRateMultCached = false;
                 cachedStaminaRateMult = 0.0f;
             }

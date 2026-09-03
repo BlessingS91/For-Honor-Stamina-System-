@@ -7,8 +7,7 @@ namespace StaminaDamage {
     namespace {
 
         struct StaminaModifiers {
-            float attackDamage = 1.0f;
-            float targetStagger = 1.0f;
+            float multiplier = 1.0f;
             float lastStaminaPercent = -1.0f;
         };
 
@@ -35,7 +34,7 @@ namespace StaminaDamage {
             return std::clamp(stamina / maxStamina, 0.0f, 1.0f);
         }
 
-        float GetStaminaMultiplier(RE::Actor* actor) {
+        float CalculateStaminaMultiplier(RE::Actor* actor) {
             const float staminaPercent = GetStaminaPercent(actor);
 
             return Settings::staminaCosts.minStaminaDamage +
@@ -50,7 +49,7 @@ namespace StaminaDamage {
         }
 
         const float staminaPercent = GetStaminaPercent(actor);
-        const float staminaMultiplier = GetStaminaMultiplier(actor);
+        const float staminaMultiplier = CalculateStaminaMultiplier(actor);
 
         auto& data = modifiers[actor];
 
@@ -58,11 +57,10 @@ namespace StaminaDamage {
             data.lastStaminaPercent = staminaPercent;
         }
 
-        data.attackDamage = staminaMultiplier;
-        data.targetStagger = staminaMultiplier;
+        data.multiplier = staminaMultiplier;
     }
 
-    float GetAttackDamageMultiplier(RE::Actor* actor) {
+    extern "C" __declspec(dllexport) float GetStaminaMultiplier(RE::Actor* actor) {
         if (!actor) {
             return 1.0f;
         }
@@ -70,24 +68,10 @@ namespace StaminaDamage {
         auto it = modifiers.find(actor);
 
         if (it == modifiers.end()) {
-            return GetStaminaMultiplier(actor);
+            return CalculateStaminaMultiplier(actor);
         }
 
-        return it->second.attackDamage;
-    }
-
-    float GetTargetStaggerMultiplier(RE::Actor* actor) {
-        if (!actor) {
-            return 1.0f;
-        }
-
-        auto it = modifiers.find(actor);
-
-        if (it == modifiers.end()) {
-            return GetStaminaMultiplier(actor);
-        }
-
-        return it->second.targetStagger;
+        return it->second.multiplier;
     }
 
 }

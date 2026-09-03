@@ -1,13 +1,11 @@
 #pragma once
 
-#include "RE/Skyrim.h"
+#include <RE/Skyrim.h>
 
 namespace StaminaDamage {
 
     void Update(RE::Actor* actor);
 
-    float GetAttackDamageMultiplier(RE::Actor* actor);
-
-    float GetTargetStaggerMultiplier(RE::Actor* actor);
+    extern "C" __declspec(dllexport) float GetStaminaMultiplier(RE::Actor* actor);
 
 }
