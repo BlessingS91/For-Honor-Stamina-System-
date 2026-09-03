@@ -1,5 +1,7 @@
 #include "Events.h"
 
+#include "MultiHittingBalance.h"
+#include "Settings.h"
 #include "Stamina.h"
 #include "StaminaDamage.h"
 
@@ -31,6 +33,21 @@ namespace Stamina {
 
         const auto& tag = a_event->tag;
 
+        // Reset multi-hit counter at the beginning of a new attack,
+        // stagger, or block.
+        if (Settings::multiHitEnabled &&
+            (tag == "MCO_WinOpen" || tag == "MCO_PowerWinOpen" || tag == "staggerStart" || tag == "Blockstart")) {
+            const auto rightSwings = MultiHittingBalance::GetRightSwingCount(actor);
+            const auto leftSwings = MultiHittingBalance::GetLeftSwingCount(actor);
+
+            if (rightSwings > 0 || leftSwings > 0) {
+                MultiHittingBalance::Reset(actor);
+
+                logger::info("[MultiHit] {} reset on {} | Right={} Left={}", actor->GetName(), tag, rightSwings,
+                             leftSwings);
+            }
+        }
+
         // bash/stagger exhaust only when player stamina is below 1.
 
         if (tag == "bashStop" || tag == "staggerStart") {
@@ -38,7 +55,7 @@ namespace Stamina {
                 if (auto* actorValueOwner = actor->AsActorValueOwner()) {
                     const float currentStamina = actorValueOwner->GetActorValue(RE::ActorValue::kStamina);
 
-                    if (currentStamina < 1.0f) {
+                    if (currentStamina < 1.0f && actor->IsInCombat()) {
                         ProcessExhausted(actor);
                         logger::info("Exhaustion applied on {}. Stamina={:.1f}.", tag, currentStamina);
                     }
@@ -54,6 +71,13 @@ namespace Stamina {
         }
 
         const bool leftSwing = tag == "weaponLeftSwing";
+
+        if (tag == "weaponSwing") {
+            MultiHittingBalance::RegisterRightSwing(actor);
+        } else if (tag == "weaponLeftSwing") {
+            MultiHittingBalance::RegisterLeftSwing(actor);
+        }
+
         auto* attackObject = actor->GetEquippedObject(leftSwing);
 
         bool powerAttack = false;
@@ -91,14 +115,17 @@ namespace Stamina {
         // Always let the stamina-cost spell handle the stamina transaction.
         ProcessAttack(actor, attackObject, powerAttack, leftSwing);
 
-        if (willExhaust) {
+        if (willExhaust && actor->IsInCombat()) {
             ProcessExhausted(actor);
 
             logger::info("Attack exhausted player: exhaustion applied immediately on {}.", tag);
         }
 
-        logger::info("Attack event: tag={}, powerAttack={}, hand={}, object={}", tag, powerAttack,
-                     leftSwing ? "Left" : "Right",
+        const auto swingCount =
+            leftSwing ? MultiHittingBalance::GetLeftSwingCount(actor) : MultiHittingBalance::GetRightSwingCount(actor);
+
+        logger::info("Attack event: tag={}, powerAttack={}, hand={}, swing={}, object={}", tag, powerAttack,
+                     leftSwing ? "Left" : "Right", swingCount,
                      attackObject && attackObject->GetName() ? attackObject->GetName() : "Unarmed");
 
         return RE::BSEventNotifyControl::kContinue;
@@ -119,5 +146,4 @@ namespace Stamina {
 
         return _NPCProcessEvent(a_this, a_event, a_source);
     }
-
 }

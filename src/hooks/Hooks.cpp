@@ -38,13 +38,9 @@ namespace Stamina::Hooks {
                 return false;
             }
 
-            auto* effectSetting = dataHandler->LookupForm<RE::EffectSetting>(0x080E, "For Honor Stamina System.esp");
+            auto* effectSetting = dataHandler->LookupForm<RE::EffectSetting>(0x080E, kStaminaRecoveryPlugin);
 
             if (!effectSetting) {
-                logger::warn(
-                    "Could not find out-of-stamina effect: "
-                    "For Honor Stamina System.esp|080E");
-
                 return false;
             }
 
@@ -63,10 +59,10 @@ namespace Stamina::Hooks {
 
         void Update(RE::Actor* actor, float delta) {
             if (!_Update.address()) {
-                logger::critical("ACTOR UPDATE: original function is NULL!");
                 return;
             }
 
+            // Always let the game perform its normal update first.
             _Update(actor, delta);
 
             if (!actor) {
@@ -74,38 +70,43 @@ namespace Stamina::Hooks {
             }
 
             auto* player = RE::PlayerCharacter::GetSingleton();
+
             if (!player || actor != player) {
                 return;
             }
 
             auto* actorValueOwner = player->AsActorValueOwner();
+
             if (!actorValueOwner) {
-                logger::warn("Player AsActorValueOwner() returned NULL.");
                 return;
             }
 
-            const bool outOfStamina = HasOutOfStaminaEffect(player);
-            const float staminaRateMult = actorValueOwner->GetActorValue(RE::ActorValue::kStaminaRateMult);
-
-            if (outOfStamina) {
-                // First frame of exhaustion.
-                if (!staminaRateMultCached) {
-                    cachedStaminaRateMult = staminaRateMult;
-                    staminaRateMultCached = true;
-
-                    logger::info("Out of stamina START: cached staminaRateMult={:.3f}", cachedStaminaRateMult);
-                }
-
-                // Prevent stamina regeneration while exhausted.
-                if (staminaRateMult != 0.0f) {
-                    actorValueOwner->SetActorValue(RE::ActorValue::kStaminaRateMult, 0.0f);
-                }
-
-                return;
-            }
-
-            // We were exhausted, but the effect has now ended.
+            /*
+             * ============================================================
+             * EXHAUSTION ACTIVE
+             * ============================================================
+             *
+             * Once we have detected exhaustion, we already know the
+             * player's stamina regeneration must remain at zero.
+             *
+             * We only need to check whether the effect has ended.
+             */
             if (staminaRateMultCached) {
+                if (HasOutOfStaminaEffect(player)) {
+                    // Keep regeneration disabled.
+                    if (actorValueOwner->GetActorValue(RE::ActorValue::kStaminaRateMult) != 0.0f) {
+                        actorValueOwner->SetActorValue(RE::ActorValue::kStaminaRateMult, 0.0f);
+                    }
+
+                    return;
+                }
+
+                /*
+                 * ========================================================
+                 * EXHAUSTION ENDED
+                 * ========================================================
+                 */
+
                 actorValueOwner->SetActorValue(RE::ActorValue::kStaminaRateMult, cachedStaminaRateMult);
 
                 const float maxStamina = actorValueOwner->GetPermanentActorValue(RE::ActorValue::kStamina);
@@ -128,19 +129,53 @@ namespace Stamina::Hooks {
                                                        false, recoveryAmount, player);
 
                             logger::info("Stamina recovery spell cast: amount={:.1f}", recoveryAmount);
+
                         } else {
                             logger::error("Failed to obtain instant MagicCaster.");
                         }
+
                     } else {
                         logger::error("Failed to find Stamina Recovery spell.");
                     }
                 }
 
-                // Clear the state so recovery only happens once.
+                // Exhaustion cycle is finished.
                 staminaRateMultCached = false;
                 cachedStaminaRateMult = 0.0f;
+
+                return;
+            }
+
+            /*
+             * ============================================================
+             * NORMAL STATE
+             * ============================================================
+             *
+             * Only here do we check whether exhaustion has started.
+             */
+            if (!HasOutOfStaminaEffect(player)) {
+                return;
+            }
+
+            /*
+             * ============================================================
+             * EXHAUSTION START
+             * ============================================================
+             */
+
+            const float staminaRateMult = actorValueOwner->GetActorValue(RE::ActorValue::kStaminaRateMult);
+
+            cachedStaminaRateMult = staminaRateMult;
+            staminaRateMultCached = true;
+
+            logger::info("Out of stamina START: cached staminaRateMult={:.3f}", cachedStaminaRateMult);
+
+            // Immediately stop regeneration.
+            if (staminaRateMult != 0.0f) {
+                actorValueOwner->SetActorValue(RE::ActorValue::kStaminaRateMult, 0.0f);
             }
         }
+
     }
 
     void Install() {
@@ -192,4 +227,5 @@ namespace Stamina::Hooks {
 
         logger::info("Player Actor::Update hook installed successfully.");
     }
+
 }

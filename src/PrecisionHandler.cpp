@@ -2,6 +2,7 @@
 
 #include <SKSE/SKSE.h>
 
+#include "MultiHittingBalance.h"
 #include "StaminaDamage.h"
 
 namespace PrecisionHandler {
@@ -22,7 +23,17 @@ namespace PrecisionHandler {
             return result;
         }
 
-        const float damageMultiplier = StaminaDamage::GetStaminaMultiplier(attacker);
+        // Existing stamina-based damage scaling.
+        const float staminaMultiplier = StaminaDamage::GetStaminaMultiplier(attacker);
+
+        // Multi-hit scaling.
+        // Uses whichever hand registered the most recent swing.
+        const float multiHitMultiplier = MultiHittingBalance::GetCurrentDamageMultiplier(attacker);
+
+        const float damageMultiplier = staminaMultiplier * multiHitMultiplier;
+
+        logger::info("[Precision] {} | stamina={:.4f} | multiHit={:.4f} | final={:.4f}", attacker->GetName(),
+                     staminaMultiplier, multiHitMultiplier, damageMultiplier);
 
         if (damageMultiplier == 1.0f) {
             return result;
@@ -32,8 +43,8 @@ namespace PrecisionHandler {
                                     PRECISION_API::PreHitModifier::ModifierOperation::Multiplicative,
                                     damageMultiplier});
 
-        logger::info("[Precision] {} -> {} | Stamina Damage Multiplier = {:.3f}", attacker->GetName(),
-                     target->GetName(), damageMultiplier);
+        logger::info("[Precision] {} -> {} | Damage Multiplier = {:.3f}", attacker->GetName(), target->GetName(),
+                     damageMultiplier);
 
         return result;
     }

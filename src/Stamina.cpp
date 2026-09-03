@@ -1,9 +1,9 @@
 #include "Stamina.h"
 
+#include "MultiHittingBalance.h"
 #include "PrecisionHandler.h"
 #include "Settings.h"
 #include "hooks/Hooks.h"
-
 namespace Stamina {
 
     void Initialize() {
@@ -140,6 +140,8 @@ namespace Stamina {
             cost *= Settings::staminaCosts.powerAttackMultiplier;
         }
 
+        // Multi-hitting: first swing is full cost, subsequent swings cost 50%.
+        cost *= MultiHittingBalance::GetStaminaCostMultiplier(actor, leftSwing);
         return cost;
     }
 

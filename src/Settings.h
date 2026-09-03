@@ -16,18 +16,34 @@ namespace Settings {
         float battleaxe = 30.0f;
         float warhammer = 32.0f;
         float shield = 15.0f;
+
         float minStaminaDamage = 0.85f;
         float maxStaminaDamage = 1.15f;
         float powerAttackMultiplier = 2.0f;
     };
 
+    struct MultiHitting {
+        float scalingMultiplier = 0.75f;
+    };
+
     extern StaminaCosts staminaCosts;
+    extern MultiHitting multiHitting;
+
     extern RE::ActorValue unarmedSkillActorValue;
+
     extern float exhaustionRecoveryPercent;
+    extern float weaponDrawnMultiplier;
+    extern float combatMultiplier;
+
+    extern bool movementSpeedEnabled;
+    extern bool multiHitEnabled;
 
     void Load();
     void Save();
     void ResetToDefaults();
+
     float GetWeaponCost(const std::string& weaponType);
+
     StaminaCosts& Mutable();
+
 }

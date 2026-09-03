@@ -41,6 +41,8 @@ add_commonlibsse_plugin(${PROJECT_NAME} SOURCES
     src/Settings.cpp
     src/Menu.cpp
     src/PrecisionHandler.cpp
+    src/MultiHittingBalance.cpp
+    src/MovementSpeed.cpp
     )
 
 target_include_directories(${PROJECT_NAME} PRIVATE

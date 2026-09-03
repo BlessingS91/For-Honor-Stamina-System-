@@ -12,7 +12,10 @@ namespace {
     namespace ui = ImGuiMCP;
 
     constexpr auto kSection = "For Honor Stamina System";
-    constexpr auto kPage = "Stamina Settings";
+
+    constexpr auto kStaminaPage = "Stamina Settings";
+    constexpr auto kMultiHitPage = "Multi-Hit Settings";
+    constexpr auto kMovementPage = "Movement Settings";
 
     void StaminaCostSlider(const char* label, float* value) {
         ui::SliderFloat(label, value, 1.0f, 50.0f, "%.0f");
@@ -46,7 +49,7 @@ namespace {
         }
     }
 
-    void RenderSettings() {
+    void RenderStaminaSettings() {
         auto& costs = Settings::staminaCosts;
 
         ui::Text("For Honor Stamina System");
@@ -77,12 +80,15 @@ namespace {
         ui::SliderFloat("Maximum Damage Multiplier", &costs.maxStaminaDamage, 0.0f, 2.0f, "%.2f");
 
         ui::Text("0%% Stamina = %.2fx", costs.minStaminaDamage);
+
         ui::Text("100%% Stamina = %.2fx", costs.maxStaminaDamage);
 
         ui::Separator();
 
         ui::Text("Target Stagger");
+
         ui::Text("0%% Stamina = %.2fx", costs.minStaminaDamage);
+
         ui::Text("100%% Stamina = %.2fx", costs.maxStaminaDamage);
 
         ui::Separator();
@@ -96,7 +102,9 @@ namespace {
         ui::Separator();
 
         ui::Text("Exhaustion Recovery");
+
         ui::SliderFloat("Recovery Percentage", &Settings::exhaustionRecoveryPercent, 0.0f, 1.0f, "%.2f");
+
         ui::Text("Recovery = %.0f%% of Maximum Stamina", Settings::exhaustionRecoveryPercent * 100.0f);
 
         ui::Separator();
@@ -111,6 +119,57 @@ namespace {
             Settings::ResetToDefaults();
         }
     }
+
+    void RenderMultiHitSettings() {
+        ui::Text("Multi-Hitting");
+        ui::Separator();
+
+        ui::Checkbox("Enable Multi-Hit Scaling", &Settings::multiHitEnabled);
+
+        ui::SliderFloat("Multi-Hit Scaling Multiplier", &Settings::multiHitting.scalingMultiplier, 0.0f, 2.0f, "%.2f");
+
+        ui::Text("Multi-Hit Scaling = %.2fx", Settings::multiHitting.scalingMultiplier);
+
+        ui::Separator();
+
+        if (ui::Button("Save Settings")) {
+            Settings::Save();
+        }
+
+        ui::SameLine();
+
+        if (ui::Button("Reset to Defaults")) {
+            Settings::ResetToDefaults();
+        }
+    }
+
+    void RenderMovementSettings() {
+        ui::Text("Movement Speed");
+        ui::Separator();
+
+        ui::Checkbox("Enable Movement Speed Modifiers", &Settings::movementSpeedEnabled);
+
+        ui::SliderFloat("Weapon Drawn Speed Multiplier", &Settings::weaponDrawnMultiplier, 0.0f, 1.0f, "%.2f");
+
+        ui::Text("Weapon Drawn Speed = %.0f%%", Settings::weaponDrawnMultiplier * 100.0f);
+
+        ui::SliderFloat("Combat Speed Multiplier", &Settings::combatMultiplier, 0.0f, 1.0f, "%.2f");
+
+        ui::Text("Combat Speed = %.0f%%", Settings::combatMultiplier * 100.0f);
+
+        ui::Separator();
+
+        if (ui::Button("Save Settings")) {
+            Settings::Save();
+        }
+
+        ui::SameLine();
+
+        if (ui::Button("Reset to Defaults")) {
+            Settings::ResetToDefaults();
+        }
+    }
+
 }
 
 namespace Menu {
@@ -118,13 +177,23 @@ namespace Menu {
     void Install() {
         if (!SKSEMenuFramework::IsInstalled()) {
             SKSE::log::info("[menu] SKSE Menu Framework not loaded, settings page unavailable");
+
             return;
         }
 
         SKSEMenuFramework::SetSection(kSection);
-        SKSEMenuFramework::AddSectionItem(kPage, RenderSettings);
 
-        SKSE::log::info("[menu] registered {}/{}", kSection, kPage);
+        SKSEMenuFramework::AddSectionItem(kStaminaPage, RenderStaminaSettings);
+
+        SKSEMenuFramework::AddSectionItem(kMultiHitPage, RenderMultiHitSettings);
+
+        SKSEMenuFramework::AddSectionItem(kMovementPage, RenderMovementSettings);
+
+        SKSE::log::info("[menu] registered {}/{}", kSection, kStaminaPage);
+
+        SKSE::log::info("[menu] registered {}/{}", kSection, kMultiHitPage);
+
+        SKSE::log::info("[menu] registered {}/{}", kSection, kMovementPage);
     }
 
 }
