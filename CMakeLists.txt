@@ -39,7 +39,9 @@ add_commonlibsse_plugin(${PROJECT_NAME} SOURCES
     src/Hooks/Hooks.cpp
     src/StaminaDamage.cpp
     src/Settings.cpp
-    src/Menu.cpp)
+    src/Menu.cpp
+    src/PrecisionHandler.cpp
+    )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
