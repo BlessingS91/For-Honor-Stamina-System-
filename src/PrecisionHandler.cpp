@@ -3,6 +3,7 @@
 #include <SKSE/SKSE.h>
 
 #include "MultiHittingBalance.h"
+#include "Settings.h"
 #include "StaminaDamage.h"
 
 namespace PrecisionHandler {
@@ -32,8 +33,10 @@ namespace PrecisionHandler {
 
         const float damageMultiplier = staminaMultiplier * multiHitMultiplier;
 
-        logger::info("[Precision] {} | stamina={:.4f} | multiHit={:.4f} | final={:.4f}", attacker->GetName(),
-                     staminaMultiplier, multiHitMultiplier, damageMultiplier);
+        if (Settings::debugLogging) {
+            logger::info("[Precision] {} | stamina={:.4f} | multiHit={:.4f} | final={:.4f}", attacker->GetName(),
+                         staminaMultiplier, multiHitMultiplier, damageMultiplier);
+        }
 
         if (damageMultiplier == 1.0f) {
             return result;
@@ -43,8 +46,10 @@ namespace PrecisionHandler {
                                     PRECISION_API::PreHitModifier::ModifierOperation::Multiplicative,
                                     damageMultiplier});
 
-        logger::info("[Precision] {} -> {} | Damage Multiplier = {:.3f}", attacker->GetName(), target->GetName(),
-                     damageMultiplier);
+        if (Settings::debugLogging) {
+            logger::info("[Precision] {} -> {} | Damage Multiplier = {:.3f}", attacker->GetName(), target->GetName(),
+                         damageMultiplier);
+        }
 
         return result;
     }

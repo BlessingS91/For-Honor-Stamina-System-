@@ -15,9 +15,16 @@ namespace Settings {
 
     bool multiHitEnabled = true;
     bool movementSpeedEnabled = true;
-    float exhaustionRecoveryPercent = 0.33f;
+    float exhaustionRecoveryPercent = 50.0f;
     float weaponDrawnMultiplier = 0.95f;
     float combatMultiplier = 0.80f;
+
+    float forwardMultiplier = 1.0f;
+    float backMultiplier = 0.2f;
+    float leftMultiplier = 0.5f;
+    float rightMultiplier = 0.5f;
+
+    bool debugLogging = false;
 
     namespace {
 
@@ -68,9 +75,10 @@ namespace Settings {
         unarmedSkillActorValue = RE::ActorValue::kLockpicking;
         movementSpeedEnabled = true;
         multiHitEnabled = true;
-        exhaustionRecoveryPercent = 0.33f;
+        exhaustionRecoveryPercent = 50.0f;
         weaponDrawnMultiplier = 0.95f;
         combatMultiplier = 0.80f;
+        debugLogging = false;
     }
 
     void Load() {
@@ -129,6 +137,8 @@ namespace Settings {
         staminaCosts.maxStaminaDamage = GetFloat("MaxStaminaDamage", staminaCosts.maxStaminaDamage);
 
         staminaCosts.powerAttackMultiplier = GetFloat("PowerAttackMultiplier", staminaCosts.powerAttackMultiplier);
+
+        debugLogging = GetFloat("DebugLogging", debugLogging ? 1.0f : 0.0f) != 0.0f;
     }
 
     void Save() {
@@ -184,6 +194,8 @@ namespace Settings {
         WriteFloat("MaxStaminaDamage", staminaCosts.maxStaminaDamage);
 
         WriteFloat("PowerAttackMultiplier", staminaCosts.powerAttackMultiplier);
+
+        WriteFloat("DebugLogging", debugLogging ? 1.0f : 0.0f);
     }
 
     float GetWeaponCost(const std::string& weaponType) {

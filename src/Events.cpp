@@ -11,9 +11,9 @@ namespace Stamina {
         REL::Relocation<std::uintptr_t> pcVtbl{RE::VTABLE_PlayerCharacter[2]};
         REL::Relocation<std::uintptr_t> npcVtbl{RE::VTABLE_Character[2]};
 
-        _PCProcessEvent = pcVtbl.write_vfunc(0x1, reinterpret_cast<std::uintptr_t>(&PCProcessEvent));
+        _PCProcessEvent = pcVtbl.write_vfunc(0x1, reinterpret_cast<std::uintptr_t*>(&PCProcessEvent));
 
-        _NPCProcessEvent = npcVtbl.write_vfunc(0x1, reinterpret_cast<std::uintptr_t>(&NPCProcessEvent));
+        _NPCProcessEvent = npcVtbl.write_vfunc(0x1, reinterpret_cast<std::uintptr_t*>(&NPCProcessEvent));
 
         logger::info("Installed stamina animation event hooks.");
     }
@@ -26,7 +26,6 @@ namespace Stamina {
         }
 
         auto* actor = const_cast<RE::Actor*>(a_event->holder->As<RE::Actor>());
-
         if (!actor) {
             return RE::BSEventNotifyControl::kContinue;
         }
@@ -35,21 +34,23 @@ namespace Stamina {
 
         // Reset multi-hit counter at the beginning of a new attack,
         // stagger, or block.
-        if (Settings::multiHitEnabled &&
-            (tag == "MCO_WinOpen" || tag == "MCO_PowerWinOpen" || tag == "staggerStart" || tag == "Blockstart")) {
+        if (Settings::multiHitEnabled && (tag == "MCO_WinOpen" || tag == "MCO_PowerWinOpen" || tag == "staggerStart" ||
+                                          tag == "blockStartOut" || tag == "AttackWinStart")) {
             const auto rightSwings = MultiHittingBalance::GetRightSwingCount(actor);
+
             const auto leftSwings = MultiHittingBalance::GetLeftSwingCount(actor);
 
             if (rightSwings > 0 || leftSwings > 0) {
                 MultiHittingBalance::Reset(actor);
 
-                logger::info("[MultiHit] {} reset on {} | Right={} Left={}", actor->GetName(), tag, rightSwings,
-                             leftSwings);
+                if (Settings::debugLogging) {
+                    logger::info("[MultiHit] {} reset on {} | Right={} Left={}", actor->GetName(), tag, rightSwings,
+                                 leftSwings);
+                }
             }
         }
 
-        // bash/stagger exhaust only when player stamina is below 1.
-
+        // Bash/stagger exhaust only when player stamina is below 1.
         if (tag == "bashStop" || tag == "staggerStart") {
             if (actor == RE::PlayerCharacter::GetSingleton()) {
                 if (auto* actorValueOwner = actor->AsActorValueOwner()) {
@@ -57,7 +58,10 @@ namespace Stamina {
 
                     if (currentStamina < 1.0f && actor->IsInCombat()) {
                         ProcessExhausted(actor);
-                        logger::info("Exhaustion applied on {}. Stamina={:.1f}.", tag, currentStamina);
+
+                        if (Settings::debugLogging) {
+                            logger::info("Exhaustion applied on {}. Stamina={:.1f}.", tag, currentStamina);
+                        }
                     }
                 }
             }
@@ -96,7 +100,10 @@ namespace Stamina {
         const float attackCost = GetAttackCost(actor, attackObject, powerAttack, leftSwing);
 
         const float damageMultiplier = StaminaDamage::GetStaminaMultiplier(actor);
-        logger::info("Attack: {} | Damage Multiplier={:.3f}", actor->GetName(), damageMultiplier);
+
+        if (Settings::debugLogging) {
+            logger::info("Attack: {} | Damage Multiplier={:.3f}", actor->GetName(), damageMultiplier);
+        }
 
         bool willExhaust = false;
 
@@ -107,8 +114,10 @@ namespace Stamina {
 
                 willExhaust = currentStamina < attackCost;
 
-                logger::info("Attack stamina check: Current={:.1f}, Cost={:.1f}, WillExhaust={}", currentStamina,
-                             attackCost, willExhaust);
+                if (Settings::debugLogging) {
+                    logger::info("Attack stamina check: Current={:.1f}, Cost={:.1f}, WillExhaust={}", currentStamina,
+                                 attackCost, willExhaust);
+                }
             }
         }
 
@@ -118,15 +127,19 @@ namespace Stamina {
         if (willExhaust && actor->IsInCombat()) {
             ProcessExhausted(actor);
 
-            logger::info("Attack exhausted player: exhaustion applied immediately on {}.", tag);
+            if (Settings::debugLogging) {
+                logger::info("Attack exhausted player: exhaustion applied immediately on {}.", tag);
+            }
         }
 
         const auto swingCount =
             leftSwing ? MultiHittingBalance::GetLeftSwingCount(actor) : MultiHittingBalance::GetRightSwingCount(actor);
 
-        logger::info("Attack event: tag={}, powerAttack={}, hand={}, swing={}, object={}", tag, powerAttack,
-                     leftSwing ? "Left" : "Right", swingCount,
-                     attackObject && attackObject->GetName() ? attackObject->GetName() : "Unarmed");
+        if (Settings::debugLogging) {
+            logger::info("Attack event: tag={}, powerAttack={}, hand={}, swing={}, object={}", tag, powerAttack,
+                         leftSwing ? "Left" : "Right", swingCount,
+                         attackObject && attackObject->GetName() ? attackObject->GetName() : "Unarmed");
+        }
 
         return RE::BSEventNotifyControl::kContinue;
     }
@@ -135,7 +148,6 @@ namespace Stamina {
                                                     RE::BSAnimationGraphEvent* a_event,
                                                     RE::BSTEventSource<RE::BSAnimationGraphEvent>* a_source) {
         ProcessEvent(a_this, a_event, a_source);
-
         return _PCProcessEvent(a_this, a_event, a_source);
     }
 
@@ -143,7 +155,7 @@ namespace Stamina {
                                                      RE::BSAnimationGraphEvent* a_event,
                                                      RE::BSTEventSource<RE::BSAnimationGraphEvent>* a_source) {
         ProcessEvent(a_this, a_event, a_source);
-
         return _NPCProcessEvent(a_this, a_event, a_source);
     }
+
 }

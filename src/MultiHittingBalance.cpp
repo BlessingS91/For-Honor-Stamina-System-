@@ -10,6 +10,7 @@ namespace MultiHittingBalance {
     namespace {
 
         std::unordered_map<RE::Actor*, SwingState> swingStates;
+
         constexpr float kFirstSwingMultiplier = 1.0f;
 
         SwingState& GetState(RE::Actor* actor) { return swingStates[actor]; }
@@ -21,6 +22,7 @@ namespace MultiHittingBalance {
 
             return std::pow(Settings::multiHitting.scalingMultiplier, static_cast<float>(swingCount - 1));
         }
+
     }
 
     void Reset(RE::Actor* actor) {
@@ -37,11 +39,14 @@ namespace MultiHittingBalance {
         }
 
         auto& state = GetState(actor);
+
         ++state.rightHandSwings;
         state.lastSwingLeft = false;
 
-        logger::info("[MultiHit] {} RIGHT swing #{} | multiplier={:.4f}", actor->GetName(), state.rightHandSwings,
-                     GetMultiplier(state.rightHandSwings));
+        if (Settings::debugLogging) {
+            logger::info("[MultiHit] {} RIGHT swing #{} | multiplier={:.4f}", actor->GetName(), state.rightHandSwings,
+                         GetMultiplier(state.rightHandSwings));
+        }
     }
 
     void RegisterLeftSwing(RE::Actor* actor) {
@@ -50,11 +55,14 @@ namespace MultiHittingBalance {
         }
 
         auto& state = GetState(actor);
+
         ++state.leftHandSwings;
         state.lastSwingLeft = true;
 
-        logger::info("[MultiHit] {} LEFT swing #{} | multiplier={:.4f}", actor->GetName(), state.leftHandSwings,
-                     GetMultiplier(state.leftHandSwings));
+        if (Settings::debugLogging) {
+            logger::info("[MultiHit] {} LEFT swing #{} | multiplier={:.4f}", actor->GetName(), state.leftHandSwings,
+                         GetMultiplier(state.leftHandSwings));
+        }
     }
 
     std::uint32_t GetRightSwingCount(RE::Actor* actor) {
@@ -79,12 +87,15 @@ namespace MultiHittingBalance {
         }
 
         const auto& state = GetState(actor);
+
         const auto swingCount = leftHand ? state.leftHandSwings : state.rightHandSwings;
 
         const auto multiplier = GetMultiplier(swingCount);
 
-        logger::info("[MultiHit] {} {} stamina | swing #{} | multiplier={:.4f}", actor->GetName(),
-                     leftHand ? "LEFT" : "RIGHT", swingCount, multiplier);
+        if (Settings::debugLogging) {
+            logger::info("[MultiHit] {} {} stamina | swing #{} | multiplier={:.4f}", actor->GetName(),
+                         leftHand ? "LEFT" : "RIGHT", swingCount, multiplier);
+        }
 
         return multiplier;
     }
@@ -95,6 +106,7 @@ namespace MultiHittingBalance {
         }
 
         const auto& state = GetState(actor);
+
         const auto swingCount = leftHand ? state.leftHandSwings : state.rightHandSwings;
 
         return GetMultiplier(swingCount);
@@ -106,6 +118,7 @@ namespace MultiHittingBalance {
         }
 
         const auto& state = GetState(actor);
+
         const auto swingCount = state.lastSwingLeft ? state.leftHandSwings : state.rightHandSwings;
 
         return GetMultiplier(swingCount);
@@ -118,4 +131,5 @@ namespace MultiHittingBalance {
 
         return damage * GetDamageMultiplier(actor, leftHand);
     }
+
 }

@@ -160,21 +160,27 @@ namespace Stamina {
             RE::TESDataHandler::GetSingleton()->LookupForm<RE::SpellItem>(kStaminaCostSpell, kStaminaCostPlugin);
 
         if (!spell) {
-            logger::error("Failed to find Stamina Costs spell.");
+            if (Settings::debugLogging) {
+                logger::error("Failed to find Stamina Costs spell.");
+            }
             return;
         }
 
         auto* caster = actor->GetMagicCaster(RE::MagicSystem::CastingSource::kInstant);
 
         if (!caster) {
-            logger::error("Failed to get instant magic caster.");
+            if (Settings::debugLogging) {
+                logger::error("Failed to get instant magic caster.");
+            }
             return;
         }
 
         const char* attackType = powerAttack ? "Power" : "Light";
 
-        logger::info("{} attack: Cost={}, LeftSwing={}, Object={}", attackType, cost, leftSwing,
-                     attackObject ? attackObject->GetName() : "Unarmed");
+        if (Settings::debugLogging) {
+            logger::info("{} attack: Cost={}, LeftSwing={}, Object={}", attackType, cost, leftSwing,
+                         attackObject ? attackObject->GetName() : "Unarmed");
+        }
 
         caster->CastSpellImmediate(spell, true, actor, 1.0f, false, cost, actor);
     }
@@ -186,7 +192,9 @@ namespace Stamina {
         auto* spell = RE::TESDataHandler::GetSingleton()->LookupForm<RE::SpellItem>(kExhaustedSpell, kExhaustedPlugin);
 
         if (!spell) {
-            logger::error("Failed to find Exhausted spell.");
+            if (Settings::debugLogging) {
+                logger::error("Failed to find Exhausted spell.");
+            }
             return;
         }
 
@@ -200,12 +208,16 @@ namespace Stamina {
             kOutOfStaminaEffect, kOutOfStaminaEffectPlugin);
 
         if (!outOfStaminaEffect) {
-            logger::error("Failed to find Out of Stamina magic effect.");
+            if (Settings::debugLogging) {
+                logger::error("Failed to find Out of Stamina magic effect.");
+            }
             return;
         }
 
         if (magicTarget->HasMagicEffect(outOfStaminaEffect)) {
-            logger::info("Already in OOS State; skipping Exhausted.");
+            if (Settings::debugLogging) {
+                logger::info("Already in OOS State; skipping Exhausted.");
+            }
             return;
         }
 
@@ -214,19 +226,25 @@ namespace Stamina {
             kExhaustionRecoveryEffect, kExhaustionRecoveryEffectPlugin);
 
         if (!exhaustionRecoveryEffect) {
-            logger::error("Failed to find Exhaustion Recovery magic effect.");
+            if (Settings::debugLogging) {
+                logger::error("Failed to find Exhaustion Recovery magic effect.");
+            }
             return;
         }
 
         if (magicTarget->HasMagicEffect(exhaustionRecoveryEffect)) {
-            logger::info("Exhaustion Recovery is active; skipping Exhausted.");
+            if (Settings::debugLogging) {
+                logger::info("Exhaustion Recovery is active; skipping Exhausted.");
+            }
             return;
         }
 
         auto* caster = actor->GetMagicCaster(RE::MagicSystem::CastingSource::kInstant);
 
         if (!caster) {
-            logger::error("Failed to get instant magic caster.");
+            if (Settings::debugLogging) {
+                logger::error("Failed to get instant magic caster.");
+            }
             return;
         }
 
@@ -241,8 +259,10 @@ namespace Stamina {
 
         actorValueOwner->SetActorValue(RE::ActorValue::kVariable10, durationValue);
 
-        logger::info("Actor exhausted: {}, Variable10={:.1f}, Variable10 old={:.1f}", actor->GetName(), durationValue,
-                     oldVariable10);
+        if (Settings::debugLogging) {
+            logger::info("Actor exhausted: {}, Variable10={:.1f}, Variable10 old={:.1f}", *actor->GetName(),
+                         durationValue, oldVariable10);
+        }
 
         caster->CastSpellImmediate(spell, true, actor, 1.0f, false, 0.0f, actor);
 
@@ -258,14 +278,18 @@ namespace Stamina {
                                                                                     kExhaustionRecoveryPlugin);
 
         if (!spell) {
-            logger::error("Failed to find Exhaustion Recovery spell.");
+            if (Settings::debugLogging) {
+                logger::error("Failed to find Exhaustion Recovery spell.");
+            }
             return;
         }
 
         auto* caster = actor->GetMagicCaster(RE::MagicSystem::CastingSource::kInstant);
 
         if (!caster) {
-            logger::error("Failed to get instant magic caster.");
+            if (Settings::debugLogging) {
+                logger::error("Failed to get instant magic caster.");
+            }
             return;
         }
 
@@ -282,9 +306,10 @@ namespace Stamina {
             return;
         }
 
-        logger::info("Exhaustion recovery: Actor={}, MaxStamina={:.1f}, Recovery={:.1f}", actor->GetName(), maxStamina,
-                     recoveryAmount);
-
+        if (Settings::debugLogging) {
+            logger::info("Exhaustion recovery: Actor={}, MaxStamina={:.1f}, Recovery={:.1f}", *actor->GetName(),
+                         maxStamina, recoveryAmount);
+        }
         caster->CastSpellImmediate(spell, true, actor, 1.0f, false, recoveryAmount, actor);
     }
 
@@ -378,11 +403,13 @@ namespace Stamina {
             armorSkill = actorValueOwner->GetActorValue(RE::ActorValue::kAlteration);
         }
 
-        logger::info(
-            "Relevant Skills: Actor={}, "
-            "Weapon=[{}: {:.1f}], "
-            "Armor=[{}: {:.1f}]",
-            actor->GetName(), weaponSkillType, weaponSkill, armorSkillType, armorSkill);
+        if (Settings::debugLogging) {
+            logger::info(
+                "Relevant Skills: Actor={}, "
+                "Weapon=[{}: {:.1f}], "
+                "Armor=[{}: {:.1f}]",
+                actor->GetName(), weaponSkillType, weaponSkill, armorSkillType, armorSkill);
+        }
     }
 
     float CalculateExhaustionValue(RE::Actor* actor) {
@@ -406,10 +433,12 @@ namespace Stamina {
 
         const float combinedSkill = (weaponPercent + armorPercent) * 50.0f;
 
-        logger::info(
-            "Exhaustion Scaling: Actor={}, "
-            "WeaponSkill={:.1f}, ArmorSkill={:.1f}, Variable10={:.1f}",
-            *actor->GetName(), weaponSkill, armorSkill, combinedSkill);
+        if (Settings::debugLogging) {
+            logger::info(
+                "Exhaustion Scaling: Actor={}, "
+                "WeaponSkill={:.1f}, ArmorSkill={:.1f}, Variable10={:.1f}",
+                *actor->GetName(), weaponSkill, armorSkill, combinedSkill);
+        }
 
         return combinedSkill;
     }

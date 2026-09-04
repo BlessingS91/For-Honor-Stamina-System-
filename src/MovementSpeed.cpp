@@ -9,9 +9,7 @@
 #include "Settings.h"
 
 namespace MovementSpeed {
-
     namespace {
-
         using MoveSpeedScale_t = float (*)(RE::TESObjectREFR*);
         MoveSpeedScale_t MoveSpeedScale_Original = nullptr;
 
@@ -21,48 +19,25 @@ namespace MovementSpeed {
             }
 
             RE::TESCondition condition;
-
             auto* item = new RE::TESConditionItem();
-            item->next = nullptr;
 
+            item->next = nullptr;
             item->data.functionData.function = RE::FUNCTION_DATA::FunctionID::kIsWeaponMagicOut;
-
             item->data.flags.opCode = RE::CONDITION_ITEM_DATA::OpCode::kEqualTo;
-
             item->data.object = RE::CONDITIONITEMOBJECT::kSelf;
-
             item->data.comparisonValue.f = 1.0f;
 
             condition.head = item;
 
             return condition.IsTrue(actor, actor);
         }
-
-        bool IsSprinting(RE::Actor* actor) {
-            if (!actor) {
-                return false;
-            }
-
-            RE::TESCondition condition;
-
-            auto* item = new RE::TESConditionItem();
-            item->next = nullptr;
-
-            item->data.functionData.function = RE::FUNCTION_DATA::FunctionID::kIsSprinting;
-
-            item->data.flags.opCode = RE::CONDITION_ITEM_DATA::OpCode::kEqualTo;
-
-            item->data.object = RE::CONDITIONITEMOBJECT::kSelf;
-
-            item->data.comparisonValue.f = 1.0f;
-
-            condition.head = item;
-
-            return condition.IsTrue(actor, actor);
-        }
-
     }
 
+    /*
+     * Main movement-speed hook.
+     *
+     * Directional movement is intentionally NOT handled here.
+     */
     float MoveSpeedHook::Call(RE::TESObjectREFR* a_ref) {
         if (!MoveSpeedScale_Original) {
             return 1.0f;
@@ -79,6 +54,7 @@ namespace MovementSpeed {
         }
 
         auto* actor = a_ref->As<RE::Actor>();
+
         if (!actor) {
             return original;
         }
@@ -87,17 +63,10 @@ namespace MovementSpeed {
             return original;
         }
 
-        const bool sprinting = IsSprinting(actor);
-
-        // No movement penalties while sprinting.
-        if (sprinting) {
-            return original;
-        }
+        float multiplier = 1.0f;
 
         const bool weaponDrawn = IsWeaponMagicOut(actor);
         const bool inCombat = actor->IsInCombat();
-
-        float multiplier = 1.0f;
 
         if (weaponDrawn) {
             multiplier *= Settings::weaponDrawnMultiplier;
@@ -107,9 +76,7 @@ namespace MovementSpeed {
             multiplier *= Settings::combatMultiplier;
         }
 
-        const float result = original * multiplier;
-
-        return result;
+        return original * multiplier;
     }
 
     void Install() {
@@ -132,5 +99,4 @@ namespace MovementSpeed {
 
         logger::info("[MovementSpeed] MoveSpeed hook installed successfully.");
     }
-
 }

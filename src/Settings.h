@@ -12,10 +12,10 @@ namespace Settings {
         float sword = 14.0f;
         float warAxe = 15.0f;
         float mace = 16.0f;
-        float greatsword = 28.0f;
-        float battleaxe = 30.0f;
-        float warhammer = 32.0f;
-        float shield = 15.0f;
+        float greatsword = 26.0f;
+        float battleaxe = 27.0f;
+        float warhammer = 28.0f;
+        float shield = 16.0f;
 
         float minStaminaDamage = 0.85f;
         float maxStaminaDamage = 1.15f;
@@ -23,7 +23,7 @@ namespace Settings {
     };
 
     struct MultiHitting {
-        float scalingMultiplier = 0.75f;
+        float scalingMultiplier = 0.6f;
     };
 
     extern StaminaCosts staminaCosts;
@@ -37,6 +37,13 @@ namespace Settings {
 
     extern bool movementSpeedEnabled;
     extern bool multiHitEnabled;
+
+    extern float forwardMultiplier;
+    extern float backMultiplier;
+    extern float leftMultiplier;
+    extern float rightMultiplier;
+
+    extern bool debugLogging;
 
     void Load();
     void Save();

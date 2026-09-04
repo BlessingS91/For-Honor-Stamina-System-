@@ -16,6 +16,7 @@ namespace {
     constexpr auto kStaminaPage = "Stamina Settings";
     constexpr auto kMultiHitPage = "Multi-Hit Settings";
     constexpr auto kMovementPage = "Movement Settings";
+    constexpr auto kDebugPage = "Debug Settings";
 
     void StaminaCostSlider(const char* label, float* value) {
         ui::SliderFloat(label, value, 1.0f, 50.0f, "%.0f");
@@ -43,8 +44,7 @@ namespace {
             }
         }
 
-        if (ui::Combo("Unarmed Skill Actor Value. Adamant Hand to Hand uses Lockpicking.", &selected, names,
-                      static_cast<int>(std::size(names)))) {
+        if (ui::Combo("Unarmed Skill.", &selected, names, static_cast<int>(std::size(names)))) {
             Settings::unarmedSkillActorValue = values[selected];
         }
     }
@@ -77,9 +77,9 @@ namespace {
 
         ui::SliderFloat("Minimum Damage Multiplier", &costs.minStaminaDamage, 0.0f, 2.0f, "%.2f");
 
-        ui::SliderFloat("Maximum Damage Multiplier", &costs.maxStaminaDamage, 0.0f, 2.0f, "%.2f");
-
         ui::Text("0%% Stamina = %.2fx", costs.minStaminaDamage);
+
+        ui::SliderFloat("Maximum Damage Multiplier", &costs.maxStaminaDamage, 0.0f, 2.0f, "%.2f");
 
         ui::Text("100%% Stamina = %.2fx", costs.maxStaminaDamage);
 
@@ -100,12 +100,15 @@ namespace {
         ui::Text("Power Attack Cost = %.2fx Light Attack Cost", costs.powerAttackMultiplier);
 
         ui::Separator();
-
         ui::Text("Exhaustion Recovery");
 
-        ui::SliderFloat("Recovery Percentage", &Settings::exhaustionRecoveryPercent, 0.0f, 1.0f, "%.2f");
+        ui::SliderFloat("Stamina Recovery", &Settings::exhaustionRecoveryPercent, 0.0f, 100.0f, "%.0f");
 
-        ui::Text("Recovery = %.0f%% of Maximum Stamina", Settings::exhaustionRecoveryPercent * 100.0f);
+        if (ui::IsItemDeactivatedAfterEdit()) {
+            Settings::exhaustionRecoveryPercent = std::round(Settings::exhaustionRecoveryPercent);
+        }
+
+        ui::Text("Recovery = %.0f Stamina", Settings::exhaustionRecoveryPercent);
 
         ui::Separator();
 
@@ -147,13 +150,13 @@ namespace {
         ui::Text("Movement Speed");
         ui::Separator();
 
-        ui::Checkbox("Enable Movement Speed Modifiers", &Settings::movementSpeedEnabled);
+        ui::Checkbox("Enable Movement", &Settings::movementSpeedEnabled);
 
-        ui::SliderFloat("Weapon Drawn Speed Multiplier", &Settings::weaponDrawnMultiplier, 0.0f, 1.0f, "%.2f");
+        ui::SliderFloat("Weapon Drawn Speed", &Settings::weaponDrawnMultiplier, 0.0f, 1.0f, "%.2f");
 
         ui::Text("Weapon Drawn Speed = %.0f%%", Settings::weaponDrawnMultiplier * 100.0f);
 
-        ui::SliderFloat("Combat Speed Multiplier", &Settings::combatMultiplier, 0.0f, 1.0f, "%.2f");
+        ui::SliderFloat("Combat Speed", &Settings::combatMultiplier, 0.0f, 1.0f, "%.2f");
 
         ui::Text("Combat Speed = %.0f%%", Settings::combatMultiplier * 100.0f);
 
@@ -170,6 +173,24 @@ namespace {
         }
     }
 
+    void RenderDebugSettings() {
+        ui::Text("Debug");
+        ui::Separator();
+
+        ui::Checkbox("Enable Debug Logging", &Settings::debugLogging);
+
+        ui::Separator();
+
+        if (ui::Button("Save Settings")) {
+            Settings::Save();
+        }
+
+        ui::SameLine();
+
+        if (ui::Button("Reset to Defaults")) {
+            Settings::ResetToDefaults();
+        }
+    }
 }
 
 namespace Menu {
@@ -189,11 +210,15 @@ namespace Menu {
 
         SKSEMenuFramework::AddSectionItem(kMovementPage, RenderMovementSettings);
 
+        SKSEMenuFramework::AddSectionItem(kDebugPage, RenderDebugSettings);
+
         SKSE::log::info("[menu] registered {}/{}", kSection, kStaminaPage);
 
         SKSE::log::info("[menu] registered {}/{}", kSection, kMultiHitPage);
 
         SKSE::log::info("[menu] registered {}/{}", kSection, kMovementPage);
+
+        SKSE::log::info("[menu] registered {}/{}", kSection, kDebugPage);
     }
 
 }

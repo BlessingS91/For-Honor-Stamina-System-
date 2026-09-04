@@ -109,12 +109,16 @@ namespace Stamina::Hooks {
 
                 actorValueOwner->SetActorValue(RE::ActorValue::kStaminaRateMult, cachedStaminaRateMult);
 
-                const float maxStamina = actorValueOwner->GetPermanentActorValue(RE::ActorValue::kStamina);
+                // percentage based stam scaling, might make an option later
+                // const float maxStamina = actorValueOwner->GetPermanentActorValue(RE::ActorValue::kStamina);
+                // const float recoveryAmount = maxStamina * Settings::exhaustionRecoveryPercent;
 
-                const float recoveryAmount = maxStamina * Settings::exhaustionRecoveryPercent;
+                const float recoveryAmount = Settings::exhaustionRecoveryPercent;
 
-                logger::info("Out of stamina END: restoring regen={:.3f}, recovery={:.1f}", cachedStaminaRateMult,
-                             recoveryAmount);
+                if (Settings::debugLogging) {
+                    logger::info("Out of stamina END: restoring regen={:.3f}, recovery={:.1f}", cachedStaminaRateMult,
+                                 recoveryAmount);
+                }
 
                 auto* dataHandler = RE::TESDataHandler::GetSingleton();
 
@@ -128,14 +132,20 @@ namespace Stamina::Hooks {
                             caster->CastSpellImmediate(reinterpret_cast<RE::MagicItem*>(spell), true, player, 1.0f,
                                                        false, recoveryAmount, player);
 
-                            logger::info("Stamina recovery spell cast: amount={:.1f}", recoveryAmount);
+                            if (Settings::debugLogging) {
+                                logger::info("Stamina recovery spell cast: amount={:.1f}", recoveryAmount);
+                            }
 
                         } else {
-                            logger::error("Failed to obtain instant MagicCaster.");
+                            if (Settings::debugLogging) {
+                                logger::error("Failed to obtain instant MagicCaster.");
+                            }
                         }
 
                     } else {
-                        logger::error("Failed to find Stamina Recovery spell.");
+                        if (Settings::debugLogging) {
+                            logger::error("Failed to find Stamina Recovery spell.");
+                        }
                     }
                 }
 
@@ -168,7 +178,9 @@ namespace Stamina::Hooks {
             cachedStaminaRateMult = staminaRateMult;
             staminaRateMultCached = true;
 
-            logger::info("Out of stamina START: cached staminaRateMult={:.3f}", cachedStaminaRateMult);
+            if (Settings::debugLogging) {
+                logger::info("Out of stamina START: cached staminaRateMult={:.3f}", cachedStaminaRateMult);
+            }
 
             // Immediately stop regeneration.
             if (staminaRateMult != 0.0f) {
