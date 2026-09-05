@@ -75,19 +75,11 @@ namespace {
 
         ui::Text("Stamina Damage Scaling");
 
-        ui::SliderFloat("Minimum Damage Multiplier", &costs.minStaminaDamage, 0.0f, 2.0f, "%.2f");
+        ui::SliderFloat("Minimum Stamina Damage Multiplier", &costs.minStaminaDamage, 0.0f, 2.0f, "%.2f");
 
         ui::Text("0%% Stamina = %.2fx", costs.minStaminaDamage);
 
-        ui::SliderFloat("Maximum Damage Multiplier", &costs.maxStaminaDamage, 0.0f, 2.0f, "%.2f");
-
-        ui::Text("100%% Stamina = %.2fx", costs.maxStaminaDamage);
-
-        ui::Separator();
-
-        ui::Text("Target Stagger");
-
-        ui::Text("0%% Stamina = %.2fx", costs.minStaminaDamage);
+        ui::SliderFloat("Fax Stamina Damage Multiplier", &costs.maxStaminaDamage, 0.0f, 2.0f, "%.2f");
 
         ui::Text("100%% Stamina = %.2fx", costs.maxStaminaDamage);
 
