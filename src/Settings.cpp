@@ -19,6 +19,8 @@ namespace Settings {
     float weaponDrawnMultiplier = 0.95f;
     float combatMultiplier = 0.80f;
 
+    bool ignoreOutOfStamina = false;
+
     float forwardMultiplier = 1.0f;
     float backMultiplier = 0.2f;
     float leftMultiplier = 0.5f;
@@ -75,6 +77,7 @@ namespace Settings {
         unarmedSkillActorValue = RE::ActorValue::kLockpicking;
         movementSpeedEnabled = true;
         multiHitEnabled = true;
+        ignoreOutOfStamina = false;
         exhaustionRecoveryPercent = 50.0f;
         weaponDrawnMultiplier = 0.95f;
         combatMultiplier = 0.80f;
@@ -92,6 +95,8 @@ namespace Settings {
 
         // MultiHitting Settings
         multiHitting.scalingMultiplier = GetFloat("MultiHitScalingMultiplier", multiHitting.scalingMultiplier);
+
+        ignoreOutOfStamina = GetFloat("IgnoreOutOfStamina", ignoreOutOfStamina ? 1.0f : 0.0f) != 0.0f;
         // MoveSpeed Settings
         weaponDrawnMultiplier = GetFloat("WeaponDrawnMultiplier", weaponDrawnMultiplier);
         combatMultiplier = GetFloat("CombatMultiplier", combatMultiplier);
@@ -151,6 +156,8 @@ namespace Settings {
         WriteFloat("ExhaustionRecoveryPercent", exhaustionRecoveryPercent);
 
         WriteFloat("MultiHitScalingMultiplier", multiHitting.scalingMultiplier);
+
+        WriteFloat("IgnoreOutOfStamina", ignoreOutOfStamina ? 1.0f : 0.0f);
 
         WriteFloat("WeaponDrawnMultiplier", weaponDrawnMultiplier);
         WriteFloat("CombatMultiplier", combatMultiplier);

@@ -34,8 +34,10 @@ namespace Stamina {
 
         // Reset multi-hit counter at the beginning of a new attack,
         // stagger, or block.
-        if (Settings::multiHitEnabled && (tag == "MCO_WinOpen" || tag == "MCO_PowerWinOpen" || tag == "staggerStart" ||
-                                          tag == "blockStartOut" || tag == "AttackWinStart")) {
+        if (Settings::multiHitEnabled &&
+            (tag == "MCO_WinOpen" || tag == "MCO_PowerWinOpen" || tag == "staggerStart" || tag == "blockStartOut" ||
+             tag == "AttackWinStart" || tag == "BFCO_NextWinStart" || tag == "SBF_PowerAttackStop" ||
+             tag == "SBF_NormalAttackStop" || tag == "SBF_ReadyStart")) {
             const auto rightSwings = MultiHittingBalance::GetRightSwingCount(actor);
 
             const auto leftSwings = MultiHittingBalance::GetLeftSwingCount(actor);
@@ -56,7 +58,7 @@ namespace Stamina {
                 if (auto* actorValueOwner = actor->AsActorValueOwner()) {
                     const float currentStamina = actorValueOwner->GetActorValue(RE::ActorValue::kStamina);
 
-                    if (currentStamina < 1.0f && actor->IsInCombat()) {
+                    if (currentStamina < 1.0f && actor->IsInCombat() && !Settings::ignoreOutOfStamina) {
                         ProcessExhausted(actor);
 
                         if (Settings::debugLogging) {
@@ -124,7 +126,7 @@ namespace Stamina {
         // Always let the stamina-cost spell handle the stamina transaction.
         ProcessAttack(actor, attackObject, powerAttack, leftSwing);
 
-        if (willExhaust && actor->IsInCombat()) {
+        if (willExhaust && actor->IsInCombat() && !Settings::ignoreOutOfStamina) {
             ProcessExhausted(actor);
 
             if (Settings::debugLogging) {

@@ -27,6 +27,9 @@ namespace Settings {
     };
 
     extern StaminaCosts staminaCosts;
+
+    extern bool ignoreOutOfStamina;
+
     extern MultiHitting multiHitting;
 
     extern RE::ActorValue unarmedSkillActorValue;

@@ -53,6 +53,11 @@ namespace {
         auto& costs = Settings::staminaCosts;
 
         ui::Text("For Honor Stamina System");
+
+        ui::Separator();
+
+        ui::Checkbox("Disable Out of Stamina State", &Settings::ignoreOutOfStamina);
+
         ui::Separator();
 
         ui::Text("Attack Stamina Costs");
@@ -79,7 +84,7 @@ namespace {
 
         ui::Text("0%% Stamina = %.2fx", costs.minStaminaDamage);
 
-        ui::SliderFloat("Fax Stamina Damage Multiplier", &costs.maxStaminaDamage, 0.0f, 2.0f, "%.2f");
+        ui::SliderFloat("Max Stamina Damage Multiplier", &costs.maxStaminaDamage, 0.0f, 2.0f, "%.2f");
 
         ui::Text("100%% Stamina = %.2fx", costs.maxStaminaDamage);
 
