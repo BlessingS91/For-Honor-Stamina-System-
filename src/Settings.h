@@ -29,22 +29,22 @@ namespace Settings {
     extern StaminaCosts staminaCosts;
 
     extern bool ignoreOutOfStamina;
+    extern float outOfStaminaBaseDuration;
 
     extern MultiHitting multiHitting;
 
     extern RE::ActorValue unarmedSkillActorValue;
 
-    extern float exhaustionRecoveryPercent;
     extern float weaponDrawnMultiplier;
     extern float combatMultiplier;
 
     extern bool movementSpeedEnabled;
     extern bool multiHitEnabled;
 
-    extern float forwardMultiplier;
-    extern float backMultiplier;
-    extern float leftMultiplier;
-    extern float rightMultiplier;
+    extern float exhaustionRecoveryPercent;
+    extern bool allowExhaustionOutOfCombat;
+    extern float outOfStaminaMoveSpeedNerf;
+    extern float outOfStaminaAttackSpeedNerf;
 
     extern bool debugLogging;
 

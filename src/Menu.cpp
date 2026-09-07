@@ -14,6 +14,7 @@ namespace {
     constexpr auto kSection = "For Honor Stamina System";
 
     constexpr auto kStaminaPage = "Stamina Settings";
+    constexpr auto kOutOfStaminaPage = "Out of Stamina Settings";
     constexpr auto kMultiHitPage = "Multi-Hit Settings";
     constexpr auto kMovementPage = "Movement Settings";
     constexpr auto kDebugPage = "Debug Settings";
@@ -56,10 +57,6 @@ namespace {
 
         ui::Separator();
 
-        ui::Checkbox("Disable Out of Stamina State", &Settings::ignoreOutOfStamina);
-
-        ui::Separator();
-
         ui::Text("Attack Stamina Costs");
 
         StaminaCostSlider("Unarmed", &costs.unarmed);
@@ -97,6 +94,31 @@ namespace {
         ui::Text("Power Attack Cost = %.2fx Light Attack Cost", costs.powerAttackMultiplier);
 
         ui::Separator();
+
+        if (ui::Button("Save Settings")) {
+            Settings::Save();
+        }
+
+        ui::SameLine();
+
+        if (ui::Button("Reset to Defaults")) {
+            Settings::ResetToDefaults();
+        }
+    }
+
+    void RenderOutOfStaminaSettings() {
+        ui::Text("Out of Stamina Settings");
+
+        ui::Separator();
+
+        ui::Checkbox("Disable Out of Stamina State", &Settings::ignoreOutOfStamina);
+
+        ui::Separator();
+
+        ui::Checkbox("Allow Exhaustion Out of Combat", &Settings::allowExhaustionOutOfCombat);
+
+        ui::Separator();
+
         ui::Text("Exhaustion Recovery");
 
         ui::SliderFloat("Stamina Recovery", &Settings::exhaustionRecoveryPercent, 0.0f, 100.0f, "%.0f");
@@ -105,7 +127,30 @@ namespace {
             Settings::exhaustionRecoveryPercent = std::round(Settings::exhaustionRecoveryPercent);
         }
 
-        ui::Text("Recovery = %.0f Stamina", Settings::exhaustionRecoveryPercent);
+        ui::Text("Stamina Recovery = %.0f", Settings::exhaustionRecoveryPercent);
+
+        ui::Separator();
+
+        ui::Text("Out of Stamina Penalties");
+
+        ui::SliderFloat("Base Out of Stamina Duration", &Settings::outOfStaminaBaseDuration, 5.0f, 20.0f,
+                        "%.1f seconds");
+
+        ui::Text("Base Duration = %.1f seconds", Settings::outOfStaminaBaseDuration);
+
+        ui::SliderFloat("Movement Speed Nerf", &Settings::outOfStaminaMoveSpeedNerf, 0.0f, 100.0f, "%.0f");
+
+        if (ui::IsItemDeactivatedAfterEdit()) {
+            Settings::outOfStaminaMoveSpeedNerf = std::round(Settings::outOfStaminaMoveSpeedNerf);
+        }
+
+        ui::Text("Movement Speed Reduction = %.0f%%", Settings::outOfStaminaMoveSpeedNerf);
+
+        ui::SliderFloat("Attack Speed Multiplier", &Settings::outOfStaminaAttackSpeedNerf, 0.0f, 1.0f, "%.2f");
+
+        ui::Text("Attack Speed Multiplier = %.2f", Settings::outOfStaminaAttackSpeedNerf);
+
+        ui::Text("Attack Speed Reduction = %.0f%%", (1.0f - Settings::outOfStaminaAttackSpeedNerf) * 100.0f);
 
         ui::Separator();
 
@@ -203,6 +248,8 @@ namespace Menu {
 
         SKSEMenuFramework::AddSectionItem(kStaminaPage, RenderStaminaSettings);
 
+        SKSEMenuFramework::AddSectionItem(kOutOfStaminaPage, RenderOutOfStaminaSettings);
+
         SKSEMenuFramework::AddSectionItem(kMultiHitPage, RenderMultiHitSettings);
 
         SKSEMenuFramework::AddSectionItem(kMovementPage, RenderMovementSettings);
@@ -210,6 +257,8 @@ namespace Menu {
         SKSEMenuFramework::AddSectionItem(kDebugPage, RenderDebugSettings);
 
         SKSE::log::info("[menu] registered {}/{}", kSection, kStaminaPage);
+
+        SKSE::log::info("[menu] registered {}/{}", kSection, kOutOfStaminaPage);
 
         SKSE::log::info("[menu] registered {}/{}", kSection, kMultiHitPage);
 

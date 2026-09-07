@@ -20,6 +20,13 @@ namespace Settings {
     float combatMultiplier = 0.80f;
 
     bool ignoreOutOfStamina = false;
+    bool allowExhaustionOutOfCombat = false;
+    float outOfStaminaBaseDuration = 10.0f;
+    float outOfStaminaMoveSpeedNerf = 50.0f;
+    float outOfStaminaAttackSpeedNerf = 0.2f;
+
+    bool disableLightAttack = true;
+    bool disablePowerAttack = true;
 
     float forwardMultiplier = 1.0f;
     float backMultiplier = 0.2f;
@@ -73,11 +80,14 @@ namespace Settings {
 
     void ResetToDefaults() {
         staminaCosts = StaminaCosts{};
+        ignoreOutOfStamina = false;
+        outOfStaminaBaseDuration = 10.0f;
+        outOfStaminaMoveSpeedNerf = 50.0f;
+        outOfStaminaAttackSpeedNerf = 0.2f;
         multiHitting = MultiHitting{};
         unarmedSkillActorValue = RE::ActorValue::kLockpicking;
         movementSpeedEnabled = true;
         multiHitEnabled = true;
-        ignoreOutOfStamina = false;
         exhaustionRecoveryPercent = 50.0f;
         weaponDrawnMultiplier = 0.95f;
         combatMultiplier = 0.80f;
@@ -91,12 +101,22 @@ namespace Settings {
 
         multiHitEnabled = GetFloat("MultiHitEnabled", multiHitEnabled ? 1.0f : 0.0f) != 0.0f;
 
-        exhaustionRecoveryPercent = GetFloat("ExhaustionRecoveryPercent", exhaustionRecoveryPercent);
-
         // MultiHitting Settings
         multiHitting.scalingMultiplier = GetFloat("MultiHitScalingMultiplier", multiHitting.scalingMultiplier);
 
         ignoreOutOfStamina = GetFloat("IgnoreOutOfStamina", ignoreOutOfStamina ? 1.0f : 0.0f) != 0.0f;
+
+        allowExhaustionOutOfCombat =
+            GetFloat("AllowExhaustionOutOfCombat", allowExhaustionOutOfCombat ? 1.0f : 0.0f) != 0.0f;
+
+        outOfStaminaBaseDuration = GetFloat("OutOfStaminaBaseDuration", outOfStaminaBaseDuration);
+
+        exhaustionRecoveryPercent = GetFloat("ExhaustionRecoveryPercent", exhaustionRecoveryPercent);
+
+        outOfStaminaMoveSpeedNerf = GetFloat("OutOfStaminaMoveSpeedNerf", outOfStaminaMoveSpeedNerf);
+
+        outOfStaminaAttackSpeedNerf = GetFloat("OutOfStaminaAttackSpeedNerf", outOfStaminaAttackSpeedNerf);
+
         // MoveSpeed Settings
         weaponDrawnMultiplier = GetFloat("WeaponDrawnMultiplier", weaponDrawnMultiplier);
         combatMultiplier = GetFloat("CombatMultiplier", combatMultiplier);
@@ -153,11 +173,18 @@ namespace Settings {
 
         WriteFloat("MultiHitEnabled", multiHitEnabled ? 1.0f : 0.0f);
 
-        WriteFloat("ExhaustionRecoveryPercent", exhaustionRecoveryPercent);
-
         WriteFloat("MultiHitScalingMultiplier", multiHitting.scalingMultiplier);
 
         WriteFloat("IgnoreOutOfStamina", ignoreOutOfStamina ? 1.0f : 0.0f);
+
+        WriteFloat("AllowExhaustionOutOfCombat", allowExhaustionOutOfCombat ? 1.0f : 0.0f);
+
+        WriteFloat("OutOfStaminaBaseDuration", outOfStaminaBaseDuration);
+
+        WriteFloat("ExhaustionRecoveryPercent", exhaustionRecoveryPercent);
+
+        WriteFloat("OutOfStaminaMoveSpeedNerf", outOfStaminaMoveSpeedNerf);
+        WriteFloat("OutOfStaminaAttackSpeedNerf", outOfStaminaAttackSpeedNerf);
 
         WriteFloat("WeaponDrawnMultiplier", weaponDrawnMultiplier);
         WriteFloat("CombatMultiplier", combatMultiplier);

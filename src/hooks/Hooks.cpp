@@ -2,6 +2,7 @@
 
 #include "../Settings.h"
 #include "../Stamina.h"
+#include "TrueHud.h"
 
 namespace Stamina::Hooks {
 
@@ -9,7 +10,6 @@ namespace Stamina::Hooks {
 
         using Update_t = void (*)(RE::Actor*, float);
         REL::Relocation<Update_t> _Update;
-
         constexpr std::size_t kUpdateIndex = 0xAD;
 
         bool staminaRateMultCached = false;
@@ -38,7 +38,7 @@ namespace Stamina::Hooks {
                 return false;
             }
 
-            auto* effectSetting = dataHandler->LookupForm<RE::EffectSetting>(0x080E, kStaminaRecoveryPlugin);
+            auto* effectSetting = dataHandler->LookupForm<RE::EffectSetting>(0x080C, kStaminaRecoveryPlugin);
 
             if (!effectSetting) {
                 return false;
@@ -57,6 +57,10 @@ namespace Stamina::Hooks {
             return false;
         }
 
+        void SetExhaustionGlobals(bool /*exhausted*/) {
+            // Implement global state updates here if needed
+        }
+
         void Update(RE::Actor* actor, float delta) {
             if (!_Update.address()) {
                 return;
@@ -70,27 +74,17 @@ namespace Stamina::Hooks {
             }
 
             auto* player = RE::PlayerCharacter::GetSingleton();
-
             if (!player || actor != player) {
                 return;
             }
 
-            auto* actorValueOwner = player->AsActorValueOwner();
+            TrueHUD::Update(player, delta);
 
+            auto* actorValueOwner = player->AsActorValueOwner();
             if (!actorValueOwner) {
                 return;
             }
 
-            /*
-             * ============================================================
-             * EXHAUSTION ACTIVE
-             * ============================================================
-             *
-             * Once we have detected exhaustion, we already know the
-             * player's stamina regeneration must remain at zero.
-             *
-             * We only need to check whether the effect has ended.
-             */
             if (staminaRateMultCached) {
                 if (HasOutOfStaminaEffect(player)) {
                     // Keep regeneration disabled.
@@ -101,17 +95,7 @@ namespace Stamina::Hooks {
                     return;
                 }
 
-                /*
-                 * ========================================================
-                 * EXHAUSTION ENDED
-                 * ========================================================
-                 */
-
                 actorValueOwner->SetActorValue(RE::ActorValue::kStaminaRateMult, cachedStaminaRateMult);
-
-                // percentage based stam scaling, might make an option later
-                // const float maxStamina = actorValueOwner->GetPermanentActorValue(RE::ActorValue::kStamina);
-                // const float recoveryAmount = maxStamina * Settings::exhaustionRecoveryPercent;
 
                 const float recoveryAmount = Settings::exhaustionRecoveryPercent;
 
@@ -135,45 +119,26 @@ namespace Stamina::Hooks {
                             if (Settings::debugLogging) {
                                 logger::info("Stamina recovery spell cast: amount={:.1f}", recoveryAmount);
                             }
-
-                        } else {
-                            if (Settings::debugLogging) {
-                                logger::error("Failed to obtain instant MagicCaster.");
-                            }
+                        } else if (Settings::debugLogging) {
+                            logger::error("Failed to obtain instant MagicCaster.");
                         }
-
-                    } else {
-                        if (Settings::debugLogging) {
-                            logger::error("Failed to find Stamina Recovery spell.");
-                        }
+                    } else if (Settings::debugLogging) {
+                        logger::error("Failed to find Stamina Recovery spell.");
                     }
                 }
 
-                // Exhaustion cycle is finished.
                 staminaRateMultCached = false;
                 cachedStaminaRateMult = 0.0f;
-
                 return;
             }
 
-            /*
-             * ============================================================
-             * NORMAL STATE
-             * ============================================================
-             *
-             * Only here do we check whether exhaustion has started.
-             */
             if (!HasOutOfStaminaEffect(player)) {
                 return;
             }
 
-            /*
-             * ============================================================
-             * EXHAUSTION START
-             * ============================================================
-             */
-
             const float staminaRateMult = actorValueOwner->GetActorValue(RE::ActorValue::kStaminaRateMult);
+
+            SetExhaustionGlobals(true);
 
             cachedStaminaRateMult = staminaRateMult;
             staminaRateMultCached = true;
@@ -182,7 +147,6 @@ namespace Stamina::Hooks {
                 logger::info("Out of stamina START: cached staminaRateMult={:.3f}", cachedStaminaRateMult);
             }
 
-            // Immediately stop regeneration.
             if (staminaRateMult != 0.0f) {
                 actorValueOwner->SetActorValue(RE::ActorValue::kStaminaRateMult, 0.0f);
             }
@@ -198,27 +162,32 @@ namespace Stamina::Hooks {
             return;
         }
 
-        const auto actualVTable = *reinterpret_cast<std::uintptr_t*>(player);
+        const auto actualVTable = *reinterpret_cast<std::uintptr_t**>(player);
 
         if (!actualVTable) {
             logger::critical("Player actual vtable is NULL.");
             return;
         }
 
-        logger::info("Player actual vtable = {:X}", actualVTable);
+        logger::info("Player actual vtable = {:X}", reinterpret_cast<std::uintptr_t>(actualVTable));
 
-        const auto slotAddress = actualVTable + kUpdateIndex * sizeof(std::uintptr_t);
+        //
+        // Actor::Update (VTable Hook)
+        //
 
-        const auto originalAddress = *reinterpret_cast<std::uintptr_t*>(slotAddress);
+        const auto updateSlotAddress =
+            reinterpret_cast<std::uintptr_t>(actualVTable) + kUpdateIndex * sizeof(std::uintptr_t);
 
-        logger::info("Player Update slot {:X}: address={:X}", kUpdateIndex, originalAddress);
+        const auto originalUpdateAddress = *reinterpret_cast<std::uintptr_t*>(updateSlotAddress);
 
-        if (!originalAddress) {
+        logger::info("Player Update slot {:X}: address={:X}", kUpdateIndex, originalUpdateAddress);
+
+        if (!originalUpdateAddress) {
             logger::critical("Player Actor::Update slot is NULL.");
             return;
         }
 
-        REL::Relocation<std::uintptr_t> playerVTable{actualVTable};
+        REL::Relocation<std::uintptr_t> playerVTable{reinterpret_cast<std::uintptr_t>(actualVTable)};
 
         _Update = playerVTable.write_vfunc(kUpdateIndex, reinterpret_cast<std::uintptr_t>(&Update));
 
@@ -227,12 +196,12 @@ namespace Stamina::Hooks {
             return;
         }
 
-        const auto after = *reinterpret_cast<std::uintptr_t*>(slotAddress);
+        const auto updateAfter = *reinterpret_cast<std::uintptr_t*>(updateSlotAddress);
 
-        logger::info("Player Update slot after patch = {:X}, hook = {:X}", after,
+        logger::info("Player Update slot after patch = {:X}, hook = {:X}", updateAfter,
                      reinterpret_cast<std::uintptr_t>(&Update));
 
-        if (after != reinterpret_cast<std::uintptr_t>(&Update)) {
+        if (updateAfter != reinterpret_cast<std::uintptr_t>(&Update)) {
             logger::critical("Player Actor::Update hook verification FAILED.");
             return;
         }

@@ -58,7 +58,8 @@ namespace Stamina {
                 if (auto* actorValueOwner = actor->AsActorValueOwner()) {
                     const float currentStamina = actorValueOwner->GetActorValue(RE::ActorValue::kStamina);
 
-                    if (currentStamina < 1.0f && actor->IsInCombat() && !Settings::ignoreOutOfStamina) {
+                    if (currentStamina < 1.0f && (actor->IsInCombat() || Settings::allowExhaustionOutOfCombat) &&
+                        !Settings::ignoreOutOfStamina) {
                         ProcessExhausted(actor);
 
                         if (Settings::debugLogging) {
@@ -114,7 +115,7 @@ namespace Stamina {
             if (auto* actorValueOwner = actor->AsActorValueOwner()) {
                 const float currentStamina = actorValueOwner->GetActorValue(RE::ActorValue::kStamina);
 
-                willExhaust = currentStamina < attackCost;
+                willExhaust = currentStamina <= attackCost;
 
                 if (Settings::debugLogging) {
                     logger::info("Attack stamina check: Current={:.1f}, Cost={:.1f}, WillExhaust={}", currentStamina,
@@ -126,7 +127,8 @@ namespace Stamina {
         // Always let the stamina-cost spell handle the stamina transaction.
         ProcessAttack(actor, attackObject, powerAttack, leftSwing);
 
-        if (willExhaust && actor->IsInCombat() && !Settings::ignoreOutOfStamina) {
+        if (willExhaust && (actor->IsInCombat() || Settings::allowExhaustionOutOfCombat) &&
+            !Settings::ignoreOutOfStamina) {
             ProcessExhausted(actor);
 
             if (Settings::debugLogging) {

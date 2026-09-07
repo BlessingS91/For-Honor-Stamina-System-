@@ -31,6 +31,12 @@ namespace Stamina {
 
         constexpr RE::FormID kOutOfStaminaEffect = 0x80C;
         constexpr auto kOutOfStaminaEffectPlugin = "For Honor Stamina System.esp";
+
+        constexpr RE::FormID kOutOfStaminaMoveSpeedNerf = 0xA5B;
+        constexpr auto kOutOfStaminaMoveSpeedNerfPlugin = "For Honor Stamina System.esp";
+
+        constexpr RE::FormID kOutOfStaminaAttackSpeedNerf = 0xA5C;
+        constexpr auto kOutOfStaminaAttackSpeedNerfPlugin = "For Honor Stamina System.esp";
     }
 
     float GetAttackCost(RE::Actor* actor, RE::TESForm* attackObject, bool powerAttack, bool leftSwing) {
@@ -255,16 +261,50 @@ namespace Stamina {
 
         const float oldVariable10 = actorValueOwner->GetActorValue(RE::ActorValue::kVariable10);
 
-        const float durationValue = CalculateExhaustionValue(actor);
+        const float exhaustionValue = CalculateExhaustionValue(actor);
+        const float baseDuration = Settings::outOfStaminaBaseDuration;
+
+        // The ESP spell has a 10-second base duration.
+        // Variable10 scales that duration:
+        // 0   = 10 seconds
+        // 100 = 5 seconds
+        //
+        // First calculate the desired duration using the selected base,
+        // then convert that duration back into the Variable10 value.
+
+        const float durationMultiplier = 1.0f - (exhaustionValue / 200.0f);
+
+        const float desiredDuration = baseDuration * durationMultiplier;
+
+        const float durationValue = 200.0f * (1.0f - (desiredDuration / 10.0f));
 
         actorValueOwner->SetActorValue(RE::ActorValue::kVariable10, durationValue);
 
         if (Settings::debugLogging) {
-            logger::info("Actor exhausted: {}, Variable10={:.1f}, Variable10 old={:.1f}", *actor->GetName(),
-                         durationValue, oldVariable10);
+            logger::info(
+                "OOS: Actor={}, PrevVar10={:.2f}, ExhaustionValue={:.2f}, BaseDuration={:.2f}s, "
+                "DurationMultiplier={:.4f}, DesiredDuration={:.2f}s, NewVar10={:.2f}, ExpectedDuration={:.2f}s",
+                actor->GetName(), oldVariable10, exhaustionValue, baseDuration, durationMultiplier, desiredDuration,
+                durationValue, 10.0f * (1.0f - (durationValue / 200.0f)));
         }
 
-        caster->CastSpellImmediate(spell, true, actor, 1.0f, false, 0.0f, actor);
+        auto* moveSpeedNerf = RE::TESDataHandler::GetSingleton()->LookupForm<RE::SpellItem>(
+            kOutOfStaminaMoveSpeedNerf, kOutOfStaminaMoveSpeedNerfPlugin);
+
+        auto* attackSpeedNerf = RE::TESDataHandler::GetSingleton()->LookupForm<RE::SpellItem>(
+            kOutOfStaminaAttackSpeedNerf, kOutOfStaminaAttackSpeedNerfPlugin);
+
+        if (moveSpeedNerf) {
+            caster->CastSpellImmediate(reinterpret_cast<RE::MagicItem*>(moveSpeedNerf), true, actor, 1.0f, false,
+                                       Settings::outOfStaminaMoveSpeedNerf, actor);
+        }
+
+        if (attackSpeedNerf) {
+            caster->CastSpellImmediate(reinterpret_cast<RE::MagicItem*>(attackSpeedNerf), true, actor, 1.0f, false,
+                                       Settings::outOfStaminaAttackSpeedNerf, actor);
+        }
+
+        caster->CastSpellImmediate(reinterpret_cast<RE::MagicItem*>(spell), true, actor, 1.0f, false, 0.0f, actor);
 
         actorValueOwner->SetActorValue(RE::ActorValue::kVariable10, oldVariable10);
     }
@@ -299,17 +339,16 @@ namespace Stamina {
             return;
         }
 
-        const float maxStamina = actorValueOwner->GetPermanentActorValue(RE::ActorValue::kStamina);
-        const float recoveryAmount = maxStamina * Settings::exhaustionRecoveryPercent;
+        const float recoveryAmount = Settings::exhaustionRecoveryPercent;
 
         if (recoveryAmount <= 0.0f) {
             return;
         }
 
         if (Settings::debugLogging) {
-            logger::info("Exhaustion recovery: Actor={}, MaxStamina={:.1f}, Recovery={:.1f}", *actor->GetName(),
-                         maxStamina, recoveryAmount);
+            logger::info("Exhaustion recovery: Actor={}, Recovery={:.1f}", actor->GetName(), recoveryAmount);
         }
+
         caster->CastSpellImmediate(spell, true, actor, 1.0f, false, recoveryAmount, actor);
     }
 
