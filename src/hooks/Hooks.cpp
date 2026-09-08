@@ -8,15 +8,20 @@ namespace Stamina::Hooks {
 
     namespace {
 
-        using Update_t = void (*)(RE::Actor*, float);
-        REL::Relocation<Update_t> _Update;
         constexpr std::size_t kUpdateIndex = 0xAD;
 
-        bool staminaRateMultCached = false;
-        float cachedStaminaRateMult = 0.0f;
+        constexpr RE::FormID kOutOfStaminaEffect = 0x080C;
+        constexpr RE::FormID kStaminaRecoverySpell = 0x0A57;
 
-        constexpr RE::FormID kStaminaRecoverySpell = 0xA57;
-        constexpr auto kStaminaRecoveryPlugin = "For Honor Stamina System.esp";
+        constexpr auto kPluginName = "For Honor Stamina System.esp";
+
+        struct ActorStaminaState {
+            bool staminaRegenCached = false;
+            float cachedStaminaRateMult = 0.0f;
+
+            bool wasOutOfStamina = false;
+        };
+        std::unordered_map<RE::Actor*, ActorStaminaState> actorStaminaStates;
 
         bool HasOutOfStaminaEffect(RE::Actor* actor) {
             if (!actor) {
@@ -38,7 +43,7 @@ namespace Stamina::Hooks {
                 return false;
             }
 
-            auto* effectSetting = dataHandler->LookupForm<RE::EffectSetting>(0x080C, kStaminaRecoveryPlugin);
+            auto* effectSetting = dataHandler->LookupForm<RE::EffectSetting>(kOutOfStaminaEffect, kPluginName);
 
             if (!effectSetting) {
                 return false;
@@ -57,192 +62,269 @@ namespace Stamina::Hooks {
             return false;
         }
 
-        void SetExhaustionGlobals(bool /*exhausted*/) {
-            // Implement global state updates here if needed
-        }
-
-        void Update(RE::Actor* actor, float delta) {
-            if (!_Update.address()) {
+        void UpdateAttackStaminaRegen(RE::Actor* actor) {
+            if (!actor || !Settings::disableStaminaRegenWhileAttacking) {
                 return;
             }
 
-            // Always let the game perform its normal update first.
-            _Update(actor, delta);
-
-            if (!actor) {
-                return;
-            }
-
-            auto* player = RE::PlayerCharacter::GetSingleton();
-            if (!player || actor != player) {
-                return;
-            }
-
-            TrueHUD::Update(player, delta);
-
-            auto* actorValueOwner = player->AsActorValueOwner();
+            auto* actorValueOwner = actor->AsActorValueOwner();
             if (!actorValueOwner) {
                 return;
             }
 
-            if (staminaRateMultCached) {
-                if (HasOutOfStaminaEffect(player)) {
-                    // Keep regeneration disabled.
-                    if (actorValueOwner->GetActorValue(RE::ActorValue::kStaminaRateMult) != 0.0f) {
-                        actorValueOwner->SetActorValue(RE::ActorValue::kStaminaRateMult, 0.0f);
-                    }
+            auto& state = actorStaminaStates[actor];
+            const bool attacking = actor->IsAttacking();
 
-                    return;
+            if (attacking) {
+                if (!state.staminaRegenCached) {
+                    state.cachedStaminaRateMult = actorValueOwner->GetActorValue(RE::ActorValue::kStaminaRateMult);
+
+                    state.staminaRegenCached = true;
+
+                    if (Settings::debugLogging) {
+                        logger::info("[Stamina] ATTACK START: actor={:08X}, cached StaminaRateMult={:.3f}",
+                                     actor->GetFormID(), state.cachedStaminaRateMult);
+                    }
                 }
 
-                actorValueOwner->SetActorValue(RE::ActorValue::kStaminaRateMult, cachedStaminaRateMult);
+                const float currentRate = actorValueOwner->GetActorValue(RE::ActorValue::kStaminaRateMult);
 
+                if (currentRate != 0.0f) {
+                    actorValueOwner->SetActorValue(RE::ActorValue::kStaminaRateMult, 0.0f);
+
+                    if (Settings::debugLogging) {
+                        logger::info("[Stamina] REGEN DISABLED: actor={:08X}, {:.3f} -> 0.000", actor->GetFormID(),
+                                     currentRate);
+                    }
+                }
+
+                return;
+            }
+
+            // If exhaustion is active, the shared cache belongs to the
+            // currently active suppression state. Do not restore it here.
+            if (HasOutOfStaminaEffect(actor)) {
+                return;
+            }
+
+            if (!state.staminaRegenCached) {
+                return;
+            }
+
+            const float restoredRate = state.cachedStaminaRateMult;
+
+            actorValueOwner->SetActorValue(RE::ActorValue::kStaminaRateMult, restoredRate);
+
+            state.staminaRegenCached = false;
+            state.cachedStaminaRateMult = 0.0f;
+
+            if (Settings::debugLogging) {
+                logger::info("[Stamina] ATTACK END: actor={:08X}, restored StaminaRateMult={:.3f}", actor->GetFormID(),
+                             restoredRate);
+            }
+        }
+
+        void UpdateActorExhaustion(RE::Actor* actor) {
+            if (!actor) {
+                return;
+            }
+
+            auto* actorValueOwner = actor->AsActorValueOwner();
+            if (!actorValueOwner) {
+                return;
+            }
+
+            auto& state = actorStaminaStates[actor];
+            const bool exhausted = HasOutOfStaminaEffect(actor);
+
+            // ---------------------------------------------------------
+            // OOS active
+            // ---------------------------------------------------------
+            if (exhausted) {
+                if (!state.wasOutOfStamina) {
+                    state.wasOutOfStamina = true;
+
+                    if (Settings::debugLogging) {
+                        logger::info("[Stamina] OUT OF STAMINA START: actor={:08X}", actor->GetFormID());
+                    }
+                }
+
+                if (!state.staminaRegenCached) {
+                    state.cachedStaminaRateMult = actorValueOwner->GetActorValue(RE::ActorValue::kStaminaRateMult);
+
+                    state.staminaRegenCached = true;
+                }
+
+                const float currentRate = actorValueOwner->GetActorValue(RE::ActorValue::kStaminaRateMult);
+
+                if (currentRate != 0.0f) {
+                    actorValueOwner->SetActorValue(RE::ActorValue::kStaminaRateMult, 0.0f);
+                }
+
+                return;
+            }
+
+            // ---------------------------------------------------------
+            // OOS has ended.
+            // Keep wasOutOfStamina true until recovery can actually
+            // be processed if an attack is still active.
+            // ---------------------------------------------------------
+            if (state.wasOutOfStamina && actor->IsAttacking()) {
+                return;
+            }
+
+            if (!state.staminaRegenCached) {
+                state.wasOutOfStamina = false;
+                return;
+            }
+
+            const float restoredRate = state.cachedStaminaRateMult;
+
+            actorValueOwner->SetActorValue(RE::ActorValue::kStaminaRateMult, restoredRate);
+
+            // ---------------------------------------------------------
+            // OOS -> normal transition.
+            // Recovery happens exactly once.
+            // ---------------------------------------------------------
+            if (state.wasOutOfStamina) {
                 const float recoveryAmount = Settings::exhaustionRecoveryPercent;
 
                 if (Settings::debugLogging) {
-                    logger::info("Out of stamina END: restoring regen={:.3f}, recovery={:.1f}", cachedStaminaRateMult,
-                                 recoveryAmount);
+                    logger::info("[Stamina] OUT OF STAMINA END: actor={:08X}, restoring regen={:.3f}, recovery={:.1f}",
+                                 actor->GetFormID(), restoredRate, recoveryAmount);
                 }
 
                 auto* dataHandler = RE::TESDataHandler::GetSingleton();
 
                 if (dataHandler) {
-                    auto* spell = dataHandler->LookupForm<RE::SpellItem>(kStaminaRecoverySpell, kStaminaRecoveryPlugin);
+                    auto* spell = dataHandler->LookupForm<RE::SpellItem>(kStaminaRecoverySpell, kPluginName);
 
                     if (spell) {
-                        auto* caster = player->GetMagicCaster(RE::MagicSystem::CastingSource::kInstant);
+                        auto* caster = actor->GetMagicCaster(RE::MagicSystem::CastingSource::kInstant);
 
                         if (caster) {
-                            caster->CastSpellImmediate(reinterpret_cast<RE::MagicItem*>(spell), true, player, 1.0f,
-                                                       false, recoveryAmount, player);
+                            caster->CastSpellImmediate(reinterpret_cast<RE::MagicItem*>(spell), true, actor, 1.0f,
+                                                       false, recoveryAmount, actor);
 
                             if (Settings::debugLogging) {
-                                logger::info("Stamina recovery spell cast: amount={:.1f}", recoveryAmount);
+                                logger::info("[Stamina] STAMINA RECOVERY: actor={:08X}, amount={:.1f}",
+                                             actor->GetFormID(), recoveryAmount);
                             }
                         } else if (Settings::debugLogging) {
-                            logger::error("Failed to obtain instant MagicCaster.");
+                            logger::error("[Stamina] Failed to obtain instant MagicCaster for actor {:08X}.",
+                                          actor->GetFormID());
                         }
                     } else if (Settings::debugLogging) {
-                        logger::error("Failed to find Stamina Recovery spell.");
+                        logger::error("[Stamina] Failed to find Stamina Recovery spell.");
                     }
                 }
+            }
 
-                staminaRateMultCached = false;
-                cachedStaminaRateMult = 0.0f;
+            // Clear the shared suppression state AFTER recovery.
+            state.wasOutOfStamina = false;
+            state.staminaRegenCached = false;
+            state.cachedStaminaRateMult = 0.0f;
+        }
+        void UpdateActorStamina(RE::Actor* actor) {
+            if (!actor) {
                 return;
             }
 
-            if (!HasOutOfStaminaEffect(player)) {
-                return;
-            }
-
-            const float staminaRateMult = actorValueOwner->GetActorValue(RE::ActorValue::kStaminaRateMult);
-
-            SetExhaustionGlobals(true);
-
-            cachedStaminaRateMult = staminaRateMult;
-            staminaRateMultCached = true;
-
-            if (Settings::debugLogging) {
-                logger::info("Out of stamina START: cached staminaRateMult={:.3f}", cachedStaminaRateMult);
-            }
-
-            if (staminaRateMult != 0.0f) {
-                actorValueOwner->SetActorValue(RE::ActorValue::kStaminaRateMult, 0.0f);
-            }
+            UpdateActorExhaustion(actor);
+            UpdateAttackStaminaRegen(actor);
         }
 
+        struct ActorUpdateHook {
+            using func_t = void (*)(RE::Actor*, float);
+
+            static void ActorThunk(RE::Actor* a_this, float a_delta) {
+                actorFunc(a_this, a_delta);
+
+                if (!a_this) {
+                    return;
+                }
+
+                UpdateActorStamina(a_this);
+            }
+
+            static void PlayerThunk(RE::Actor* a_this, float a_delta) {
+                playerFunc(a_this, a_delta);
+
+                if (!a_this) {
+                    return;
+                }
+
+                UpdateActorStamina(a_this);
+
+                if (a_this == RE::PlayerCharacter::GetSingleton()) {
+                    TrueHUD::Update(RE::PlayerCharacter::GetSingleton(), a_delta);
+                }
+            }
+
+            static inline func_t actorFunc = nullptr;
+            static inline func_t playerFunc = nullptr;
+        };
     }
 
     void Install() {
         auto* player = RE::PlayerCharacter::GetSingleton();
 
         if (!player) {
-            logger::critical("PlayerCharacter singleton is NULL.");
+            logger::error("[Stamina] Actor::Update hook FAILED: PlayerCharacter is null.");
             return;
         }
+
+        // ---------------------------------------------------------
+        // Hook the normal Actor vtable.
+        //
+        // This handles NPCs.
+        // ---------------------------------------------------------
+
+        auto actorVTable = REL::Relocation<std::uintptr_t>(RE::VTABLE_Actor[0]);
+
+        auto actorUpdateOriginal = actorVTable.write_vfunc(kUpdateIndex, ActorUpdateHook::ActorThunk);
+
+        if (!actorUpdateOriginal) {
+            logger::error("[Stamina] Failed to install Actor vtable Update hook.");
+            return;
+        }
+
+        ActorUpdateHook::actorFunc = reinterpret_cast<ActorUpdateHook::func_t>(actorUpdateOriginal);
+
+        logger::info("[Stamina] Actor::Update hook installed at Actor vtable slot 0x{:X}.", kUpdateIndex);
+
+        // ---------------------------------------------------------
+        // Hook the player's actual vtable.
+        //
+        // The player does not dispatch through the Actor vtable
+        // path we originally tested, so patch its actual vtable.
+        // ---------------------------------------------------------
 
         const auto actualVTable = *reinterpret_cast<std::uintptr_t**>(player);
 
         if (!actualVTable) {
-            logger::critical("Player actual vtable is NULL.");
+            logger::error("[Stamina] Player actual vtable is null.");
             return;
         }
 
-        logger::info("Player actual vtable = {:X}", reinterpret_cast<std::uintptr_t>(actualVTable));
-
-        //
-        // Actor::Update (VTable Hook)
-        //
-
-        const auto updateSlotAddress =
-            reinterpret_cast<std::uintptr_t>(actualVTable) + kUpdateIndex * sizeof(std::uintptr_t);
-
-        const auto originalUpdateAddress = *reinterpret_cast<std::uintptr_t*>(updateSlotAddress);
-
-        logger::info("Player Update slot {:X}: address={:X}", kUpdateIndex, originalUpdateAddress);
-
-        if (!originalUpdateAddress) {
-            logger::critical("Player Actor::Update slot is NULL.");
-            return;
-        }
+        logger::info("[Stamina] Player actual vtable = {:016X}", reinterpret_cast<std::uintptr_t>(actualVTable));
 
         REL::Relocation<std::uintptr_t> playerVTable{reinterpret_cast<std::uintptr_t>(actualVTable)};
 
-        _Update = playerVTable.write_vfunc(kUpdateIndex, reinterpret_cast<std::uintptr_t>(&Update));
+        auto playerUpdateOriginal = playerVTable.write_vfunc(kUpdateIndex, ActorUpdateHook::PlayerThunk);
 
-        if (!_Update.address()) {
-            logger::critical("Failed to install Player Actor::Update hook.");
+        if (!playerUpdateOriginal) {
+            logger::error("[Stamina] Failed to install Player Actor::Update hook.");
             return;
         }
 
-        const auto updateAfter = *reinterpret_cast<std::uintptr_t*>(updateSlotAddress);
+        ActorUpdateHook::playerFunc = reinterpret_cast<ActorUpdateHook::func_t>(playerUpdateOriginal);
 
-        logger::info("Player Update slot after patch = {:X}, hook = {:X}", updateAfter,
-                     reinterpret_cast<std::uintptr_t>(&Update));
-
-        if (updateAfter != reinterpret_cast<std::uintptr_t>(&Update)) {
-            logger::critical("Player Actor::Update hook verification FAILED.");
-            return;
-        }
-
-        logger::info("Player Actor::Update hook installed successfully.");
+        logger::info("[Stamina] Player Actor::Update hook installed at slot 0x{:X}.", kUpdateIndex);
     }
 
-    std::unordered_map<RE::Actor*, float> attackStaminaRateMultCache;
-
-    void UpdateAttackStaminaRegen(RE::Actor* actor) {
-        if (!actor || !Settings::disableStaminaRegenWhileAttacking) {
-            return;
-        }
-
-        auto* actorValueOwner = actor->AsActorValueOwner();
-        if (!actorValueOwner) {
-            return;
-        }
-
-        const bool attacking = actor->IsAttacking();
-
-        if (attacking) {
-            if (!attackStaminaRateMultCache.contains(actor)) {
-                attackStaminaRateMultCache.emplace(actor,
-                                                   actorValueOwner->GetActorValue(RE::ActorValue::kStaminaRateMult));
-            }
-
-            if (actorValueOwner->GetActorValue(RE::ActorValue::kStaminaRateMult) != 0.0f) {
-                actorValueOwner->SetActorValue(RE::ActorValue::kStaminaRateMult, 0.0f);
-            }
-
-            return;
-        }
-
-        const auto it = attackStaminaRateMultCache.find(actor);
-        if (it == attackStaminaRateMultCache.end()) {
-            return;
-        }
-
-        actorValueOwner->SetActorValue(RE::ActorValue::kStaminaRateMult, it->second);
-
-        attackStaminaRateMultCache.erase(it);
+    void Update(float /*delta*/) {
+        // Actor-specific stamina processing is handled by the
+        // Actor::Update hooks. Nothing is required here.
     }
 }
