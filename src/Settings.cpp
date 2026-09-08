@@ -13,6 +13,7 @@ namespace Settings {
 
     RE::ActorValue unarmedSkillActorValue = RE::ActorValue::kLockpicking;
 
+    bool disableStaminaRegenWhileAttacking = true;
     bool multiHitEnabled = true;
     bool movementSpeedEnabled = true;
     float exhaustionRecoveryPercent = 50.0f;
@@ -24,14 +25,6 @@ namespace Settings {
     float outOfStaminaBaseDuration = 10.0f;
     float outOfStaminaMoveSpeedNerf = 50.0f;
     float outOfStaminaAttackSpeedNerf = 0.2f;
-
-    bool disableLightAttack = true;
-    bool disablePowerAttack = true;
-
-    float forwardMultiplier = 1.0f;
-    float backMultiplier = 0.2f;
-    float leftMultiplier = 0.5f;
-    float rightMultiplier = 0.5f;
 
     bool debugLogging = false;
 
@@ -92,6 +85,7 @@ namespace Settings {
         weaponDrawnMultiplier = 0.95f;
         combatMultiplier = 0.80f;
         debugLogging = false;
+        disableStaminaRegenWhileAttacking = true;
     }
 
     void Load() {
@@ -108,6 +102,9 @@ namespace Settings {
 
         allowExhaustionOutOfCombat =
             GetFloat("AllowExhaustionOutOfCombat", allowExhaustionOutOfCombat ? 1.0f : 0.0f) != 0.0f;
+
+        disableStaminaRegenWhileAttacking =
+            GetFloat("DisableStaminaRegenWhileAttacking", disableStaminaRegenWhileAttacking ? 1.0f : 0.0f) != 0.0f;
 
         outOfStaminaBaseDuration = GetFloat("OutOfStaminaBaseDuration", outOfStaminaBaseDuration);
 
@@ -178,6 +175,8 @@ namespace Settings {
         WriteFloat("IgnoreOutOfStamina", ignoreOutOfStamina ? 1.0f : 0.0f);
 
         WriteFloat("AllowExhaustionOutOfCombat", allowExhaustionOutOfCombat ? 1.0f : 0.0f);
+
+        WriteFloat("DisableStaminaRegenWhileAttacking", disableStaminaRegenWhileAttacking ? 1.0f : 0.0f);
 
         WriteFloat("OutOfStaminaBaseDuration", outOfStaminaBaseDuration);
 

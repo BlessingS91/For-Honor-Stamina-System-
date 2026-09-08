@@ -95,6 +95,10 @@ namespace {
 
         ui::Separator();
 
+        ui::Checkbox("Disable Stamina Regen While Attacking", &Settings::disableStaminaRegenWhileAttacking);
+
+        ui::Separator();
+
         if (ui::Button("Save Settings")) {
             Settings::Save();
         }
@@ -146,11 +150,14 @@ namespace {
 
         ui::Text("Movement Speed Reduction = %.0f%%", Settings::outOfStaminaMoveSpeedNerf);
 
-        ui::SliderFloat("Attack Speed Multiplier", &Settings::outOfStaminaAttackSpeedNerf, 0.0f, 1.0f, "%.2f");
+        float attackSpeedReduction = (1.0f - Settings::outOfStaminaAttackSpeedNerf) * 100.0f;
 
-        ui::Text("Attack Speed Multiplier = %.2f", Settings::outOfStaminaAttackSpeedNerf);
+        if (ui::SliderFloat("Attack Speed Reduction", &attackSpeedReduction, 0.0f, 100.0f, "%.0f%%")) {
+            Settings::outOfStaminaAttackSpeedNerf = 1.0f - (attackSpeedReduction / 100.0f);
+        }
 
-        ui::Text("Attack Speed Reduction = %.0f%%", (1.0f - Settings::outOfStaminaAttackSpeedNerf) * 100.0f);
+        float attackSpeed = 100.0f - attackSpeedReduction;
+        ui::Text("Out of Stamina Attack Speed = %.0f%%", attackSpeed);
 
         ui::Separator();
 

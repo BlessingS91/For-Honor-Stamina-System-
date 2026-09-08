@@ -209,4 +209,40 @@ namespace Stamina::Hooks {
         logger::info("Player Actor::Update hook installed successfully.");
     }
 
+    std::unordered_map<RE::Actor*, float> attackStaminaRateMultCache;
+
+    void UpdateAttackStaminaRegen(RE::Actor* actor) {
+        if (!actor || !Settings::disableStaminaRegenWhileAttacking) {
+            return;
+        }
+
+        auto* actorValueOwner = actor->AsActorValueOwner();
+        if (!actorValueOwner) {
+            return;
+        }
+
+        const bool attacking = actor->IsAttacking();
+
+        if (attacking) {
+            if (!attackStaminaRateMultCache.contains(actor)) {
+                attackStaminaRateMultCache.emplace(actor,
+                                                   actorValueOwner->GetActorValue(RE::ActorValue::kStaminaRateMult));
+            }
+
+            if (actorValueOwner->GetActorValue(RE::ActorValue::kStaminaRateMult) != 0.0f) {
+                actorValueOwner->SetActorValue(RE::ActorValue::kStaminaRateMult, 0.0f);
+            }
+
+            return;
+        }
+
+        const auto it = attackStaminaRateMultCache.find(actor);
+        if (it == attackStaminaRateMultCache.end()) {
+            return;
+        }
+
+        actorValueOwner->SetActorValue(RE::ActorValue::kStaminaRateMult, it->second);
+
+        attackStaminaRateMultCache.erase(it);
+    }
 }

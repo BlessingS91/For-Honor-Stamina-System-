@@ -27,6 +27,7 @@ namespace Settings {
     };
 
     extern StaminaCosts staminaCosts;
+    extern bool disableStaminaRegenWhileAttacking;
 
     extern bool ignoreOutOfStamina;
     extern float outOfStaminaBaseDuration;
