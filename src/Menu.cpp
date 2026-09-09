@@ -97,7 +97,27 @@ namespace {
 
         ui::Checkbox("Disable Stamina Regen While Attacking", &Settings::disableStaminaRegenWhileAttacking);
 
+        ui::SliderFloat("Attack Stamina Regen Delay", &Settings::attackStaminaRegenDelay, 0.5f, 2.0f, "%.1f seconds");
+
+        if (ui::IsItemDeactivatedAfterEdit()) {
+            Settings::attackStaminaRegenDelay = std::round(Settings::attackStaminaRegenDelay * 10.0f) / 10.0f;
+        }
+
+        ui::Text("Stamina Regen Delay = %.1f seconds", Settings::attackStaminaRegenDelay);
+
         ui::Separator();
+
+        // ui::Text("Attack Prevention");
+
+        // if (ui::Checkbox("Prevent Light Attacks at 0 Stamina", &Settings::lightAttackPrevention)) {
+        //     Settings::UpdateAttackPreventionGlobals();
+        // }
+
+        // if (ui::Checkbox("Prevent Heavy Attacks at 0 Stamina", &Settings::heavyAttackPrevention)) {
+        //     Settings::UpdateAttackPreventionGlobals();
+        // }
+
+        // ui::Separator();
 
         if (ui::Button("Save Settings")) {
             Settings::Save();
@@ -150,10 +170,10 @@ namespace {
 
         ui::Text("Movement Speed Reduction = %.0f%%", Settings::outOfStaminaMoveSpeedNerf);
 
-        float attackSpeedReduction = (1.0f - Settings::outOfStaminaAttackSpeedNerf) * 100.0f;
+        float attackSpeedReduction = Settings::outOfStaminaAttackSpeedNerf * 100.0f;
 
         if (ui::SliderFloat("Attack Speed Reduction", &attackSpeedReduction, 0.0f, 100.0f, "%.0f%%")) {
-            Settings::outOfStaminaAttackSpeedNerf = 1.0f - (attackSpeedReduction / 100.0f);
+            Settings::outOfStaminaAttackSpeedNerf = attackSpeedReduction / 100.0f;
         }
 
         float attackSpeed = 100.0f - attackSpeedReduction;

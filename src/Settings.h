@@ -31,6 +31,10 @@ namespace Settings {
 
     extern bool ignoreOutOfStamina;
     extern float outOfStaminaBaseDuration;
+    extern float attackStaminaRegenDelay;
+
+    extern bool lightAttackPrevention;
+    extern bool heavyAttackPrevention;
 
     extern MultiHitting multiHitting;
 
@@ -47,11 +51,14 @@ namespace Settings {
     extern float outOfStaminaMoveSpeedNerf;
     extern float outOfStaminaAttackSpeedNerf;
 
+    extern float savedExhaustionStaminaRateMult;
+
     extern bool debugLogging;
 
     void Load();
     void Save();
     void ResetToDefaults();
+    void UpdateAttackPreventionGlobals();
 
     float GetWeaponCost(const std::string& weaponType);
 

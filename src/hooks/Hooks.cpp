@@ -16,11 +16,14 @@ namespace Stamina::Hooks {
         constexpr auto kPluginName = "For Honor Stamina System.esp";
 
         struct ActorStaminaState {
-            bool staminaRegenCached = false;
-            float cachedStaminaRateMult = 0.0f;
-
+            bool attackRegenCached = false;
+            float cachedAttackStaminaRateMult = 0.0f;
+            float attackRegenDelayTimer = 0.0f;
+            bool exhaustionRegenCached = false;
+            float cachedExhaustionStaminaRateMult = 0.0f;
             bool wasOutOfStamina = false;
         };
+
         std::unordered_map<RE::Actor*, ActorStaminaState> actorStaminaStates;
 
         bool HasOutOfStaminaEffect(RE::Actor* actor) {
@@ -62,7 +65,7 @@ namespace Stamina::Hooks {
             return false;
         }
 
-        void UpdateAttackStaminaRegen(RE::Actor* actor) {
+        void UpdateAttackStaminaRegen(RE::Actor* actor, float delta) {
             if (!actor || !Settings::disableStaminaRegenWhileAttacking) {
                 return;
             }
@@ -73,17 +76,25 @@ namespace Stamina::Hooks {
             }
 
             auto& state = actorStaminaStates[actor];
+
             const bool attacking = actor->IsAttacking();
 
             if (attacking) {
-                if (!state.staminaRegenCached) {
-                    state.cachedStaminaRateMult = actorValueOwner->GetActorValue(RE::ActorValue::kStaminaRateMult);
+                // Attack is active, so reset the post-attack delay.
+                state.attackRegenDelayTimer = Settings::attackStaminaRegenDelay;
 
-                    state.staminaRegenCached = true;
+                if (!state.attackRegenCached) {
+                    const float currentRate = actorValueOwner->GetActorValue(RE::ActorValue::kStaminaRateMult);
+
+                    if (currentRate > 0.0f) {
+                        state.cachedAttackStaminaRateMult = currentRate;
+                        state.attackRegenCached = true;
+                    }
 
                     if (Settings::debugLogging) {
-                        logger::info("[Stamina] ATTACK START: actor={:08X}, cached StaminaRateMult={:.3f}",
-                                     actor->GetFormID(), state.cachedStaminaRateMult);
+                        logger::info(
+                            "[Stamina] ATTACK START: actor={:08X}, cached StaminaRateMult={:.3f}, delay={:.2f}s",
+                            actor->GetFormID(), state.cachedAttackStaminaRateMult, Settings::attackStaminaRegenDelay);
                     }
                 }
 
@@ -101,22 +112,33 @@ namespace Stamina::Hooks {
                 return;
             }
 
-            // If exhaustion is active, the shared cache belongs to the
-            // currently active suppression state. Do not restore it here.
+            // If exhaustion is active, exhaustion owns the suppression.
             if (HasOutOfStaminaEffect(actor)) {
                 return;
             }
 
-            if (!state.staminaRegenCached) {
+            // Nothing was cached by the attack system.
+            if (!state.attackRegenCached) {
                 return;
             }
 
-            const float restoredRate = state.cachedStaminaRateMult;
+            // Count down the post-attack delay.
+            if (state.attackRegenDelayTimer > 0.0f) {
+                state.attackRegenDelayTimer -= delta;
+
+                if (state.attackRegenDelayTimer > 0.0f) {
+                    return;
+                }
+
+                state.attackRegenDelayTimer = 0.0f;
+            }
+
+            const float restoredRate = state.cachedAttackStaminaRateMult;
 
             actorValueOwner->SetActorValue(RE::ActorValue::kStaminaRateMult, restoredRate);
 
-            state.staminaRegenCached = false;
-            state.cachedStaminaRateMult = 0.0f;
+            state.attackRegenCached = false;
+            state.cachedAttackStaminaRateMult = 0.0f;
 
             if (Settings::debugLogging) {
                 logger::info("[Stamina] ATTACK END: actor={:08X}, restored StaminaRateMult={:.3f}", actor->GetFormID(),
@@ -135,11 +157,13 @@ namespace Stamina::Hooks {
             }
 
             auto& state = actorStaminaStates[actor];
+
             const bool exhausted = HasOutOfStaminaEffect(actor);
 
             // ---------------------------------------------------------
             // OOS active
             // ---------------------------------------------------------
+
             if (exhausted) {
                 if (!state.wasOutOfStamina) {
                     state.wasOutOfStamina = true;
@@ -149,10 +173,25 @@ namespace Stamina::Hooks {
                     }
                 }
 
-                if (!state.staminaRegenCached) {
-                    state.cachedStaminaRateMult = actorValueOwner->GetActorValue(RE::ActorValue::kStaminaRateMult);
+                if (!state.exhaustionRegenCached) {
+                    if (state.attackRegenCached && state.cachedAttackStaminaRateMult > 0.0f) {
+                        state.cachedExhaustionStaminaRateMult = state.cachedAttackStaminaRateMult;
 
-                    state.staminaRegenCached = true;
+                        Settings::savedExhaustionStaminaRateMult = state.cachedAttackStaminaRateMult;
+
+                    } else {
+                        const float currentRate = actorValueOwner->GetActorValue(RE::ActorValue::kStaminaRateMult);
+
+                        if (currentRate > 0.0f) {
+                            state.cachedExhaustionStaminaRateMult = currentRate;
+
+                            Settings::savedExhaustionStaminaRateMult = currentRate;
+                        } else {
+                            state.cachedExhaustionStaminaRateMult = Settings::savedExhaustionStaminaRateMult;
+                        }
+                    }
+
+                    state.exhaustionRegenCached = true;
                 }
 
                 const float currentRate = actorValueOwner->GetActorValue(RE::ActorValue::kStaminaRateMult);
@@ -166,19 +205,22 @@ namespace Stamina::Hooks {
 
             // ---------------------------------------------------------
             // OOS has ended.
-            // Keep wasOutOfStamina true until recovery can actually
-            // be processed if an attack is still active.
+            //
+            // Do not restore regeneration while an attack is active
+            // OR while the attack system still owns its post-attack
+            // suppression/delay.
             // ---------------------------------------------------------
-            if (state.wasOutOfStamina && actor->IsAttacking()) {
+
+            if (state.wasOutOfStamina && (actor->IsAttacking() || state.attackRegenCached)) {
                 return;
             }
 
-            if (!state.staminaRegenCached) {
+            if (!state.exhaustionRegenCached) {
                 state.wasOutOfStamina = false;
                 return;
             }
 
-            const float restoredRate = state.cachedStaminaRateMult;
+            const float restoredRate = state.cachedExhaustionStaminaRateMult;
 
             actorValueOwner->SetActorValue(RE::ActorValue::kStaminaRateMult, restoredRate);
 
@@ -186,6 +228,7 @@ namespace Stamina::Hooks {
             // OOS -> normal transition.
             // Recovery happens exactly once.
             // ---------------------------------------------------------
+
             if (state.wasOutOfStamina) {
                 const float recoveryAmount = Settings::exhaustionRecoveryPercent;
 
@@ -210,28 +253,31 @@ namespace Stamina::Hooks {
                                 logger::info("[Stamina] STAMINA RECOVERY: actor={:08X}, amount={:.1f}",
                                              actor->GetFormID(), recoveryAmount);
                             }
+
                         } else if (Settings::debugLogging) {
                             logger::error("[Stamina] Failed to obtain instant MagicCaster for actor {:08X}.",
                                           actor->GetFormID());
                         }
+
                     } else if (Settings::debugLogging) {
                         logger::error("[Stamina] Failed to find Stamina Recovery spell.");
                     }
                 }
             }
 
-            // Clear the shared suppression state AFTER recovery.
+            // Clear ONLY the exhaustion state.
             state.wasOutOfStamina = false;
-            state.staminaRegenCached = false;
-            state.cachedStaminaRateMult = 0.0f;
+            state.exhaustionRegenCached = false;
+            state.cachedExhaustionStaminaRateMult = 0.0f;
         }
-        void UpdateActorStamina(RE::Actor* actor) {
+
+        void UpdateActorStamina(RE::Actor* actor, float delta) {
             if (!actor) {
                 return;
             }
 
             UpdateActorExhaustion(actor);
-            UpdateAttackStaminaRegen(actor);
+            UpdateAttackStaminaRegen(actor, delta);
         }
 
         struct ActorUpdateHook {
@@ -244,7 +290,7 @@ namespace Stamina::Hooks {
                     return;
                 }
 
-                UpdateActorStamina(a_this);
+                UpdateActorStamina(a_this, a_delta);
             }
 
             static void PlayerThunk(RE::Actor* a_this, float a_delta) {
@@ -254,7 +300,7 @@ namespace Stamina::Hooks {
                     return;
                 }
 
-                UpdateActorStamina(a_this);
+                UpdateActorStamina(a_this, a_delta);
 
                 if (a_this == RE::PlayerCharacter::GetSingleton()) {
                     TrueHUD::Update(RE::PlayerCharacter::GetSingleton(), a_delta);

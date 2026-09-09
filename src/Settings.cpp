@@ -14,6 +14,9 @@ namespace Settings {
     RE::ActorValue unarmedSkillActorValue = RE::ActorValue::kLockpicking;
 
     bool disableStaminaRegenWhileAttacking = true;
+    float attackStaminaRegenDelay = 1.0f;
+    bool lightAttackPrevention = false;
+    bool heavyAttackPrevention = false;
     bool multiHitEnabled = true;
     bool movementSpeedEnabled = true;
     float exhaustionRecoveryPercent = 50.0f;
@@ -26,7 +29,29 @@ namespace Settings {
     float outOfStaminaMoveSpeedNerf = 50.0f;
     float outOfStaminaAttackSpeedNerf = 0.2f;
 
+    float savedExhaustionStaminaRateMult = 0.0f;
+
     bool debugLogging = false;
+
+    void UpdateAttackPreventionGlobals() {
+        auto* dataHandler = RE::TESDataHandler::GetSingleton();
+        if (!dataHandler) {
+            logger::error("TESDataHandler is NULL");
+            return;
+        }
+
+        auto* lightGlobal = dataHandler->LookupForm<RE::TESGlobal>(0xA5D, "For Honor Stamina System.esp");
+
+        auto* heavyGlobal = dataHandler->LookupForm<RE::TESGlobal>(0xA5E, "For Honor Stamina System.esp");
+
+        if (lightGlobal) {
+            lightGlobal->value = lightAttackPrevention ? 1.0f : 0.0f;
+        }
+
+        if (heavyGlobal) {
+            heavyGlobal->value = heavyAttackPrevention ? 1.0f : 0.0f;
+        }
+    }
 
     namespace {
 
@@ -86,6 +111,10 @@ namespace Settings {
         combatMultiplier = 0.80f;
         debugLogging = false;
         disableStaminaRegenWhileAttacking = true;
+        attackStaminaRegenDelay = 1.0f;
+        lightAttackPrevention = false;
+        heavyAttackPrevention = false;
+        UpdateAttackPreventionGlobals();
     }
 
     void Load() {
@@ -100,6 +129,8 @@ namespace Settings {
 
         ignoreOutOfStamina = GetFloat("IgnoreOutOfStamina", ignoreOutOfStamina ? 1.0f : 0.0f) != 0.0f;
 
+        savedExhaustionStaminaRateMult = GetFloat("SavedExhaustionStaminaRateMult", savedExhaustionStaminaRateMult);
+
         allowExhaustionOutOfCombat =
             GetFloat("AllowExhaustionOutOfCombat", allowExhaustionOutOfCombat ? 1.0f : 0.0f) != 0.0f;
 
@@ -107,6 +138,8 @@ namespace Settings {
             GetFloat("DisableStaminaRegenWhileAttacking", disableStaminaRegenWhileAttacking ? 1.0f : 0.0f) != 0.0f;
 
         outOfStaminaBaseDuration = GetFloat("OutOfStaminaBaseDuration", outOfStaminaBaseDuration);
+
+        attackStaminaRegenDelay = GetFloat("AttackStaminaRegenDelay", attackStaminaRegenDelay);
 
         exhaustionRecoveryPercent = GetFloat("ExhaustionRecoveryPercent", exhaustionRecoveryPercent);
 
@@ -161,6 +194,8 @@ namespace Settings {
         staminaCosts.powerAttackMultiplier = GetFloat("PowerAttackMultiplier", staminaCosts.powerAttackMultiplier);
 
         debugLogging = GetFloat("DebugLogging", debugLogging ? 1.0f : 0.0f) != 0.0f;
+
+        UpdateAttackPreventionGlobals();
     }
 
     void Save() {
@@ -176,9 +211,13 @@ namespace Settings {
 
         WriteFloat("AllowExhaustionOutOfCombat", allowExhaustionOutOfCombat ? 1.0f : 0.0f);
 
+        WriteFloat("AttackStaminaRegenDelay", attackStaminaRegenDelay);
+
         WriteFloat("DisableStaminaRegenWhileAttacking", disableStaminaRegenWhileAttacking ? 1.0f : 0.0f);
 
         WriteFloat("OutOfStaminaBaseDuration", outOfStaminaBaseDuration);
+
+        WriteFloat("SavedExhaustionStaminaRateMult", savedExhaustionStaminaRateMult);
 
         WriteFloat("ExhaustionRecoveryPercent", exhaustionRecoveryPercent);
 
