@@ -1,8 +1,10 @@
 #include "Stamina.h"
 
 #include "MultiHittingBalance.h"
+#include "PoiseAPI.h"
 #include "PrecisionHandler.h"
 #include "Settings.h"
+#include "StaminaDamage.h"
 #include "hooks/Hooks.h"
 namespace Stamina {
 
@@ -11,6 +13,16 @@ namespace Stamina {
 
         Hooks::Install();
         PrecisionHandler::Install();
+
+        if (InitializePoiseAPI()) {
+            if (Poise_RegisterDamageCallback(StaminaDamage::ApplyPoiseDamageMultiplier)) {
+                logger::info("Chocolate Poise API detected. Stamina poise scaling enabled.");
+            } else {
+                logger::warn("Chocolate Poise API detected, but callback registration failed.");
+            }
+        } else {
+            logger::info("Chocolate Poise API not detected. Stamina poise scaling disabled.");
+        }
 
         logger::info("Stamina hooks initialized.");
     }
@@ -78,22 +90,50 @@ namespace Stamina {
                 }
             } else if (attackObject->formType == RE::FormType::Weapon) {
                 auto* weapon = static_cast<RE::TESObjectWEAP*>(attackObject);
-                // Find the weapon type keyword.
+
                 for (int index = weapon->numKeywords - 1; index >= 0; --index) {
                     auto* keyword = weapon->keywords[index];
+
                     if (!keyword) {
                         continue;
                     }
 
                     const std::string_view editorID = keyword->formEditorID.c_str();
-                    constexpr std::string_view prefix = "WeapType";
 
-                    if (editorID.rfind(prefix, 0) != 0) {
-                        continue;
+                    if (editorID == "WeapTypeDagger") {
+                        weaponType = "Dagger";
+                        break;
                     }
 
-                    weaponType = std::string(editorID.substr(prefix.length()));
-                    break;
+                    if (editorID == "WeapTypeSword") {
+                        weaponType = "Sword";
+                        break;
+                    }
+
+                    if (editorID == "WeapTypeGreatsword") {
+                        weaponType = "Greatsword";
+                        break;
+                    }
+
+                    if (editorID == "WeapTypeWarAxe") {
+                        weaponType = "WarAxe";
+                        break;
+                    }
+
+                    if (editorID == "WeapTypeBattleaxe") {
+                        weaponType = "Battleaxe";
+                        break;
+                    }
+
+                    if (editorID == "WeapTypeMace") {
+                        weaponType = "Mace";
+                        break;
+                    }
+
+                    if (editorID == "WeapTypeWarhammer") {
+                        weaponType = "Warhammer";
+                        break;
+                    }
                 }
             }
         }

@@ -1,8 +1,17 @@
 #include "StaminaDamage.h"
 
+#include "PoiseAPI.h"
 #include "Settings.h"
 
 namespace StaminaDamage {
+
+    float ApplyPoiseDamageMultiplier(RE::Actor* attacker, [[maybe_unused]] RE::Actor* target, float damage) {
+        if (!attacker || damage <= 0.0f) {
+            return damage;
+        }
+
+        return damage * GetStaminaMultiplier(attacker);
+    }
 
     namespace {
 

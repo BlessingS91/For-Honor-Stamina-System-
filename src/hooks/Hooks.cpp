@@ -26,6 +26,21 @@ namespace Stamina::Hooks {
 
         std::unordered_map<RE::Actor*, ActorStaminaState> actorStaminaStates;
 
+        void CleanupActorStaminaStates() {
+            for (auto it = actorStaminaStates.begin(); it != actorStaminaStates.end();) {
+                const auto& [actor, state] = *it;
+
+                if (!actor || actor->IsDead() ||
+                    (!state.attackRegenCached && state.cachedAttackStaminaRateMult == 0.0f &&
+                     state.attackRegenDelayTimer <= 0.0f && !state.exhaustionRegenCached &&
+                     state.cachedExhaustionStaminaRateMult == 0.0f && !state.wasOutOfStamina)) {
+                    it = actorStaminaStates.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
+
         bool HasOutOfStaminaEffect(RE::Actor* actor) {
             if (!actor) {
                 return false;
@@ -66,7 +81,7 @@ namespace Stamina::Hooks {
         }
 
         void UpdateAttackStaminaRegen(RE::Actor* actor, float delta) {
-            if (!actor || !Settings::disableStaminaRegenWhileAttacking) {
+            if (!actor) {
                 return;
             }
 
@@ -77,6 +92,18 @@ namespace Stamina::Hooks {
 
             auto& state = actorStaminaStates[actor];
 
+            // If the setting is disabled, clean up any cached state and bail out safely
+            if (!Settings::disableStaminaRegenWhileAttacking) {
+                if (state.attackRegenCached && !HasOutOfStaminaEffect(actor)) {
+                    actorValueOwner->SetActorValue(RE::ActorValue::kStaminaRateMult, state.cachedAttackStaminaRateMult);
+
+                    state.attackRegenCached = false;
+                    state.cachedAttackStaminaRateMult = 0.0f;
+                    state.attackRegenDelayTimer = 0.0f;
+                }
+                return;
+            }
+
             const bool attacking = actor->IsAttacking();
 
             if (attacking) {
@@ -84,11 +111,16 @@ namespace Stamina::Hooks {
                 state.attackRegenDelayTimer = Settings::attackStaminaRegenDelay;
 
                 if (!state.attackRegenCached) {
-                    const float currentRate = actorValueOwner->GetActorValue(RE::ActorValue::kStaminaRateMult);
-
-                    if (currentRate > 0.0f) {
-                        state.cachedAttackStaminaRateMult = currentRate;
+                    if (state.exhaustionRegenCached && state.cachedExhaustionStaminaRateMult > 0.0f) {
+                        state.cachedAttackStaminaRateMult = state.cachedExhaustionStaminaRateMult;
                         state.attackRegenCached = true;
+                    } else {
+                        const float currentRate = actorValueOwner->GetActorValue(RE::ActorValue::kStaminaRateMult);
+
+                        if (currentRate > 0.0f) {
+                            state.cachedAttackStaminaRateMult = currentRate;
+                            state.attackRegenCached = true;
+                        }
                     }
 
                     if (Settings::debugLogging) {
@@ -184,7 +216,6 @@ namespace Stamina::Hooks {
 
                         if (currentRate > 0.0f) {
                             state.cachedExhaustionStaminaRateMult = currentRate;
-
                             Settings::savedExhaustionStaminaRateMult = currentRate;
                         } else {
                             state.cachedExhaustionStaminaRateMult = Settings::savedExhaustionStaminaRateMult;
@@ -211,12 +242,12 @@ namespace Stamina::Hooks {
             // suppression/delay.
             // ---------------------------------------------------------
 
-            if (state.wasOutOfStamina && (actor->IsAttacking() || state.attackRegenCached)) {
+            if (!state.exhaustionRegenCached) {
+                state.wasOutOfStamina = false;
                 return;
             }
 
-            if (!state.exhaustionRegenCached) {
-                state.wasOutOfStamina = false;
+            if (state.wasOutOfStamina && (actor->IsAttacking() || state.attackRegenCached)) {
                 return;
             }
 
@@ -275,31 +306,27 @@ namespace Stamina::Hooks {
             if (!actor) {
                 return;
             }
-
-            UpdateActorExhaustion(actor);
             UpdateAttackStaminaRegen(actor, delta);
+            UpdateActorExhaustion(actor);
         }
 
         struct ActorUpdateHook {
             using func_t = void (*)(RE::Actor*, float);
 
             static void ActorThunk(RE::Actor* a_this, float a_delta) {
-                actorFunc(a_this, a_delta);
-
                 if (!a_this) {
                     return;
                 }
-
+                actorFunc(a_this, a_delta);
                 UpdateActorStamina(a_this, a_delta);
             }
 
             static void PlayerThunk(RE::Actor* a_this, float a_delta) {
-                playerFunc(a_this, a_delta);
-
                 if (!a_this) {
                     return;
                 }
 
+                playerFunc(a_this, a_delta);
                 UpdateActorStamina(a_this, a_delta);
 
                 if (a_this == RE::PlayerCharacter::GetSingleton()) {
@@ -369,8 +396,14 @@ namespace Stamina::Hooks {
         logger::info("[Stamina] Player Actor::Update hook installed at slot 0x{:X}.", kUpdateIndex);
     }
 
-    void Update(float /*delta*/) {
-        // Actor-specific stamina processing is handled by the
-        // Actor::Update hooks. Nothing is required here.
+    void Update(float delta) {
+        static float cleanupTimer = 0.0f;
+
+        cleanupTimer += delta;
+
+        if (cleanupTimer >= 10.0f) {
+            CleanupActorStaminaStates();
+            cleanupTimer -= 10.0f;
+        }
     }
 }

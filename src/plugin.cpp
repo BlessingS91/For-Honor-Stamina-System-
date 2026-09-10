@@ -16,12 +16,7 @@ SKSEPluginLoad(const SKSE::LoadInterface* skse) {
     SKSE::GetMessagingInterface()->RegisterListener([](SKSE::MessagingInterface::Message* message) {
         if (message->type == SKSE::MessagingInterface::kDataLoaded) {
             SKSE::AllocTrampoline(16);
-
             Stamina::Initialize();
-
-            Settings::Load();
-            // Settings::UpdateAttackPreventionGlobals();
-
             Menu::Install();
             MovementSpeed::Install();
             TrueHUD::Initialize();
