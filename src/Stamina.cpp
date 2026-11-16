@@ -49,6 +49,9 @@ namespace Stamina {
 
         constexpr RE::FormID kOutOfStaminaAttackSpeedNerf = 0xA5C;
         constexpr auto kOutOfStaminaAttackSpeedNerfPlugin = "For Honor Stamina System.esp";
+
+        constexpr RE::FormID kStaminaAttackSuppressionSpell = 0xA60;
+        constexpr auto kStaminaAttackSuppressionPlugin = "For Honor Stamina System.esp";
     }
 
     float GetAttackCost(RE::Actor* actor, RE::TESForm* attackObject, bool powerAttack, bool leftSwing) {
@@ -230,6 +233,50 @@ namespace Stamina {
 
         caster->CastSpellImmediate(spell, true, actor, 1.0f, false, cost, actor);
     }
+
+    void ProcessAttackStaminaSuppression(RE::Actor* actor) {
+        if (!actor || !Settings::disableStaminaRegenWhileAttacking) {
+            return;
+        }
+
+        auto* dataHandler = RE::TESDataHandler::GetSingleton();
+        if (!dataHandler) {
+            return;
+        }
+
+        auto* spell =
+            dataHandler->LookupForm<RE::SpellItem>(kStaminaAttackSuppressionSpell, kStaminaAttackSuppressionPlugin);
+
+        if (!spell) {
+            if (Settings::debugLogging) {
+                logger::error("Failed to find Stamina Attack Suppression spell.");
+            }
+            return;
+        }
+
+        auto& caster = *actor->GetMagicCaster(RE::MagicSystem::CastingSource::kInstant);
+        auto& actorValueOwner = *actor->AsActorValueOwner();
+
+        const float oldVariable08 = actorValueOwner.GetActorValue(RE::ActorValue::kVariable08);
+
+        // Base spell duration is 0.5 seconds.
+        // Variable08 scales duration by 0.015 seconds per level.
+        // Variable08 = 0   -> 0.5 seconds
+        // Variable08 = 100 -> 2.0 seconds
+        const float durationValue = std::clamp((Settings::attackStaminaRegenDelay - 0.5f) / 0.015f, 0.0f, 100.0f);
+
+        actorValueOwner.SetActorValue(RE::ActorValue::kVariable08, durationValue);
+
+        if (Settings::debugLogging) {
+            logger::info("Attack Suppression: Actor={}, Delay={:.2f}s, PrevVar08={:.2f}, NewVar08={:.2f}",
+                         actor->GetName(), Settings::attackStaminaRegenDelay, oldVariable08, durationValue);
+        }
+
+        caster.CastSpellImmediate(reinterpret_cast<RE::MagicItem*>(spell), true, actor, 1.0f, false, 0.0f, actor);
+
+        actorValueOwner.SetActorValue(RE::ActorValue::kVariable08, oldVariable08);
+    }
+
     void ProcessExhausted(RE::Actor* actor) {
         if (!actor) {
             return;

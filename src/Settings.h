@@ -51,8 +51,6 @@ namespace Settings {
     extern float outOfStaminaMoveSpeedNerf;
     extern float outOfStaminaAttackSpeedNerf;
 
-    extern float savedExhaustionStaminaRateMult;
-
     extern bool debugLogging;
 
     void Load();

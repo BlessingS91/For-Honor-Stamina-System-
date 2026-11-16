@@ -79,6 +79,8 @@ namespace Stamina {
 
         const bool leftSwing = tag == "weaponLeftSwing";
 
+        ProcessAttackStaminaSuppression(actor);
+
         if (tag == "weaponSwing") {
             MultiHittingBalance::RegisterRightSwing(actor);
         } else if (tag == "weaponLeftSwing") {

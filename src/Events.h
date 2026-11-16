@@ -10,7 +10,9 @@ namespace Stamina {
             return std::addressof(singleton);
         }
 
-        void AddEventSink();
+    public:
+        static void AddEventSink();
+        static void UpdateWindows();
 
     private:
         static RE::BSEventNotifyControl ProcessEvent(RE::BSTEventSink<RE::BSAnimationGraphEvent>* a_this,

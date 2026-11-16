@@ -97,13 +97,13 @@ namespace {
 
         ui::Checkbox("Disable Stamina Regen While Attacking", &Settings::disableStaminaRegenWhileAttacking);
 
-        ui::SliderFloat("Attack Stamina Regen Delay", &Settings::attackStaminaRegenDelay, 0.5f, 2.0f, "%.1f seconds");
+        float& attackStaminaRegenDelay = Settings::attackStaminaRegenDelay;
 
-        if (ui::IsItemDeactivatedAfterEdit()) {
-            Settings::attackStaminaRegenDelay = std::round(Settings::attackStaminaRegenDelay * 10.0f) / 10.0f;
+        if (ui::SliderFloat("Attack Stamina Regen Delay", &attackStaminaRegenDelay, 0.5f, 2.0f, "%.1f seconds")) {
+            attackStaminaRegenDelay = std::round(attackStaminaRegenDelay * 10.0f) / 10.0f;
         }
 
-        ui::Text("Stamina Regen Delay = %.1f seconds", Settings::attackStaminaRegenDelay);
+        ui::Text("Stamina Regen Delay = %.1f seconds", attackStaminaRegenDelay);
 
         ui::Separator();
 
