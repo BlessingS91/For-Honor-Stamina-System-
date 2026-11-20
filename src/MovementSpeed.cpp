@@ -13,23 +13,31 @@ namespace MovementSpeed {
         using MoveSpeedScale_t = float (*)(RE::TESObjectREFR*);
         MoveSpeedScale_t MoveSpeedScale_Original = nullptr;
 
+        // Preserve the original IsWeaponMagicOut condition semantics, without
+        // allocating a new TESConditionItem every time the speed hook runs.
+        struct WeaponMagicOutCondition {
+            RE::TESCondition condition;
+
+            WeaponMagicOutCondition() {
+                auto* item = new RE::TESConditionItem();
+                item->next = nullptr;
+                item->data.functionData.function = RE::FUNCTION_DATA::FunctionID::kIsWeaponMagicOut;
+                item->data.flags.opCode = RE::CONDITION_ITEM_DATA::OpCode::kEqualTo;
+                item->data.object = RE::CONDITIONITEMOBJECT::kSelf;
+                item->data.comparisonValue.f = 1.0f;
+                condition.head = item;
+            }
+        };
+
         bool IsWeaponMagicOut(RE::Actor* actor) {
             if (!actor) {
                 return false;
             }
 
-            RE::TESCondition condition;
-            auto* item = new RE::TESConditionItem();
-
-            item->next = nullptr;
-            item->data.functionData.function = RE::FUNCTION_DATA::FunctionID::kIsWeaponMagicOut;
-            item->data.flags.opCode = RE::CONDITION_ITEM_DATA::OpCode::kEqualTo;
-            item->data.object = RE::CONDITIONITEMOBJECT::kSelf;
-            item->data.comparisonValue.f = 1.0f;
-
-            condition.head = item;
-
-            return condition.IsTrue(actor, actor);
+            // TESCondition owns its node. One condition per thread avoids
+            // both repeated allocation and sharing mutable engine state.
+            thread_local WeaponMagicOutCondition cachedCondition;
+            return cachedCondition.condition.IsTrue(actor, actor);
         }
     }
 

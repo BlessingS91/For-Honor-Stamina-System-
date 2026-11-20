@@ -14,6 +14,7 @@ namespace MultiHittingBalance {
     extern bool enabled;
 
     void Reset(RE::Actor* actor);
+    void ResetAll();
 
     void RegisterRightSwing(RE::Actor* actor);
     void RegisterLeftSwing(RE::Actor* actor);

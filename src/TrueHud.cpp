@@ -5,6 +5,7 @@ namespace TrueHUD {
         TRUEHUD_API::IVTrueHUD2* g_trueHUD = nullptr;
         bool g_wasOutOfStamina = false;
         float g_flashTimer = 0.0f;
+        RE::EffectSetting* g_outOfStaminaEffect = nullptr;
 
         constexpr RE::FormID kOutOfStaminaEffect = 0x80C;
         constexpr auto kOutOfStaminaPlugin = "For Honor Stamina System.esp";
@@ -22,7 +23,28 @@ namespace TrueHUD {
             return;
         }
 
+        auto* handler = RE::TESDataHandler::GetSingleton();
+        if (handler) {
+            g_outOfStaminaEffect = handler->LookupForm<RE::EffectSetting>(kOutOfStaminaEffect, kOutOfStaminaPlugin);
+        }
+
+        if (!g_outOfStaminaEffect) {
+            logger::warn("[TrueHUD] Out of Stamina effect unavailable; bar override disabled.");
+        }
+
         logger::info("TrueHUD API initialized.");
+    }
+
+    void ResetRuntimeState() {
+        // Undo a previously applied override before changing characters/saves.
+        if (g_trueHUD && g_wasOutOfStamina) {
+            if (auto* player = RE::PlayerCharacter::GetSingleton()) {
+                g_trueHUD->RevertBarColor(player->GetHandle(), RE::ActorValue::kStamina,
+                                          TRUEHUD_API::BarColorType::BarColor);
+            }
+        }
+        g_wasOutOfStamina = false;
+        g_flashTimer = 0.0f;
     }
 
     void Update(RE::Actor* a_actor, float a_deltaTime) {
@@ -35,18 +57,11 @@ namespace TrueHUD {
             return;
         }
 
-        auto* dataHandler = RE::TESDataHandler::GetSingleton();
-        if (!dataHandler) {
+        if (!g_outOfStaminaEffect) {
             return;
         }
 
-        auto* outOfStaminaEffect = dataHandler->LookupForm<RE::EffectSetting>(kOutOfStaminaEffect, kOutOfStaminaPlugin);
-
-        if (!outOfStaminaEffect) {
-            return;
-        }
-
-        const bool outOfStamina = magicTarget->HasMagicEffect(outOfStaminaEffect);
+        const bool outOfStamina = magicTarget->HasMagicEffect(g_outOfStaminaEffect);
 
         const auto actorHandle = a_actor->GetHandle();
         constexpr auto actorValue = RE::ActorValue::kStamina;

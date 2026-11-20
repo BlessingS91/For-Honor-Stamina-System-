@@ -4,8 +4,6 @@
 
 namespace StaminaDamage {
 
-    void Update(RE::Actor* actor);
-
     extern "C" __declspec(dllexport) float GetStaminaMultiplier(RE::Actor* actor);
 
     float ApplyPoiseDamageMultiplier(RE::Actor* attacker, RE::Actor* target, float damage);

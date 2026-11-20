@@ -127,7 +127,7 @@ namespace Stamina {
         }
 
         // Always let the stamina-cost spell handle the stamina transaction.
-        ProcessAttack(actor, attackObject, powerAttack, leftSwing);
+        ProcessAttack(actor, attackObject, powerAttack, leftSwing, attackCost);
 
         if (willExhaust && (actor->IsInCombat() || Settings::allowExhaustionOutOfCombat) &&
             !Settings::ignoreOutOfStamina) {

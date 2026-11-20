@@ -3,13 +3,18 @@
 #include "MultiHittingBalance.h"
 #include "PoiseAPI.h"
 #include "PrecisionHandler.h"
+#include "RE/B/BGSEntryPoint.h"
 #include "Settings.h"
 #include "StaminaDamage.h"
 #include "hooks/Hooks.h"
 namespace Stamina {
+    namespace {
+        void CacheSpellForms();
+    }
 
     void Initialize() {
         Settings::Load();
+        CacheSpellForms();
 
         Hooks::Install();
         PrecisionHandler::Install();
@@ -52,6 +57,44 @@ namespace Stamina {
 
         constexpr RE::FormID kStaminaAttackSuppressionSpell = 0xA60;
         constexpr auto kStaminaAttackSuppressionPlugin = "For Honor Stamina System.esp";
+
+        struct SpellForms {
+            RE::SpellItem* staminaCost = nullptr;
+            RE::SpellItem* exhaustionRecovery = nullptr;
+            RE::EffectSetting* exhaustionRecoveryEffect = nullptr;
+            RE::SpellItem* exhausted = nullptr;
+            RE::EffectSetting* outOfStaminaEffect = nullptr;
+            RE::SpellItem* moveSpeedNerf = nullptr;
+            RE::SpellItem* attackSpeedNerf = nullptr;
+            RE::SpellItem* attackSuppression = nullptr;
+        };
+
+        SpellForms spellForms{};
+
+        // Called once at kDataLoaded before the stamina hooks are installed.
+        // Forms are owned by the game's data handler; never delete them.
+        void CacheSpellForms() {
+            auto* handler = RE::TESDataHandler::GetSingleton();
+            if (!handler) {
+                logger::error("[Stamina] Cannot resolve spell forms: TESDataHandler unavailable.");
+                return;
+            }
+
+            spellForms.staminaCost = handler->LookupForm<RE::SpellItem>(kStaminaCostSpell, kStaminaCostPlugin);
+            spellForms.exhaustionRecovery =
+                handler->LookupForm<RE::SpellItem>(kExhaustionRecoverySpell, kExhaustionRecoveryPlugin);
+            spellForms.exhaustionRecoveryEffect =
+                handler->LookupForm<RE::EffectSetting>(kExhaustionRecoveryEffect, kExhaustionRecoveryEffectPlugin);
+            spellForms.exhausted = handler->LookupForm<RE::SpellItem>(kExhaustedSpell, kExhaustedPlugin);
+            spellForms.outOfStaminaEffect =
+                handler->LookupForm<RE::EffectSetting>(kOutOfStaminaEffect, kOutOfStaminaEffectPlugin);
+            spellForms.moveSpeedNerf =
+                handler->LookupForm<RE::SpellItem>(kOutOfStaminaMoveSpeedNerf, kOutOfStaminaMoveSpeedNerfPlugin);
+            spellForms.attackSpeedNerf =
+                handler->LookupForm<RE::SpellItem>(kOutOfStaminaAttackSpeedNerf, kOutOfStaminaAttackSpeedNerfPlugin);
+            spellForms.attackSuppression =
+                handler->LookupForm<RE::SpellItem>(kStaminaAttackSuppressionSpell, kStaminaAttackSuppressionPlugin);
+        }
     }
 
     float GetAttackCost(RE::Actor* actor, RE::TESForm* attackObject, bool powerAttack, bool leftSwing) {
@@ -183,30 +226,39 @@ namespace Stamina {
             cost = Settings::staminaCosts.shield;
             cost *= shieldMultiplier;
         }
-
-        // Power attacks use the configurable multiplier.
+        // Apply the configured power attack multiplier.
         if (powerAttack) {
             cost *= Settings::staminaCosts.powerAttackMultiplier;
         }
 
-        // Multi-hitting: first swing is full cost, subsequent swings cost 50%.
+        // Apply Skyrim's native stamina-cost perk modifiers to both attack types.
+        const float beforePerks = cost;
+
+        RE::BGSEntryPoint::HandleEntryPoint(RE::BGSEntryPoint::ENTRY_POINT::kModPowerAttackStamina, actor, attackObject,
+                                            &cost);
+
+        if (Settings::debugLogging) {
+            logger::info("[Stamina Perks] Actor={}, Attack={}, Before={:.2f}, After={:.2f}", actor->GetName(),
+                         powerAttack ? "Power" : "Light", beforePerks, cost);
+        }
+
+        // Preserve existing multi-hit scaling.
         cost *= MultiHittingBalance::GetStaminaCostMultiplier(actor, leftSwing);
-        return cost;
+
+        return std::isfinite(cost) ? std::max(0.0f, cost) : 0.0f;
     }
 
     void ProcessAttack(RE::Actor* actor, RE::TESForm* attackObject, bool powerAttack, bool leftSwing) {
-        if (!actor) {
+        ProcessAttack(actor, attackObject, powerAttack, leftSwing,
+                      GetAttackCost(actor, attackObject, powerAttack, leftSwing));
+    }
+
+    void ProcessAttack(RE::Actor* actor, RE::TESForm* attackObject, bool powerAttack, bool leftSwing, float cost) {
+        if (!actor || cost <= 0.0f) {
             return;
         }
 
-        const float cost = GetAttackCost(actor, attackObject, powerAttack, leftSwing);
-
-        if (cost <= 0.0f) {
-            return;
-        }
-
-        auto* spell =
-            RE::TESDataHandler::GetSingleton()->LookupForm<RE::SpellItem>(kStaminaCostSpell, kStaminaCostPlugin);
+        auto* spell = spellForms.staminaCost;
 
         if (!spell) {
             if (Settings::debugLogging) {
@@ -239,13 +291,7 @@ namespace Stamina {
             return;
         }
 
-        auto* dataHandler = RE::TESDataHandler::GetSingleton();
-        if (!dataHandler) {
-            return;
-        }
-
-        auto* spell =
-            dataHandler->LookupForm<RE::SpellItem>(kStaminaAttackSuppressionSpell, kStaminaAttackSuppressionPlugin);
+        auto* spell = spellForms.attackSuppression;
 
         if (!spell) {
             if (Settings::debugLogging) {
@@ -254,10 +300,17 @@ namespace Stamina {
             return;
         }
 
-        auto& caster = *actor->GetMagicCaster(RE::MagicSystem::CastingSource::kInstant);
-        auto& actorValueOwner = *actor->AsActorValueOwner();
+        auto* caster = actor->GetMagicCaster(RE::MagicSystem::CastingSource::kInstant);
+        auto* actorValueOwner = actor->AsActorValueOwner();
+        if (!caster || !actorValueOwner) {
+            if (Settings::debugLogging) {
+                logger::warn("Attack Suppression: Missing MagicCaster or ActorValueOwner for actor {:08X}",
+                             actor->GetFormID());
+            }
+            return;
+        }
 
-        const float oldVariable08 = actorValueOwner.GetActorValue(RE::ActorValue::kVariable08);
+        const float oldVariable08 = actorValueOwner->GetActorValue(RE::ActorValue::kVariable08);
 
         // Base spell duration is 0.5 seconds.
         // Variable08 scales duration by 0.015 seconds per level.
@@ -265,16 +318,16 @@ namespace Stamina {
         // Variable08 = 100 -> 2.0 seconds
         const float durationValue = std::clamp((Settings::attackStaminaRegenDelay - 0.5f) / 0.015f, 0.0f, 100.0f);
 
-        actorValueOwner.SetActorValue(RE::ActorValue::kVariable08, durationValue);
+        actorValueOwner->SetActorValue(RE::ActorValue::kVariable08, durationValue);
 
         if (Settings::debugLogging) {
             logger::info("Attack Suppression: Actor={}, Delay={:.2f}s, PrevVar08={:.2f}, NewVar08={:.2f}",
                          actor->GetName(), Settings::attackStaminaRegenDelay, oldVariable08, durationValue);
         }
 
-        caster.CastSpellImmediate(reinterpret_cast<RE::MagicItem*>(spell), true, actor, 1.0f, false, 0.0f, actor);
+        caster->CastSpellImmediate(reinterpret_cast<RE::MagicItem*>(spell), true, actor, 1.0f, false, 0.0f, actor);
 
-        actorValueOwner.SetActorValue(RE::ActorValue::kVariable08, oldVariable08);
+        actorValueOwner->SetActorValue(RE::ActorValue::kVariable08, oldVariable08);
     }
 
     void ProcessExhausted(RE::Actor* actor) {
@@ -282,7 +335,7 @@ namespace Stamina {
             return;
         }
 
-        auto* spell = RE::TESDataHandler::GetSingleton()->LookupForm<RE::SpellItem>(kExhaustedSpell, kExhaustedPlugin);
+        auto* spell = spellForms.exhausted;
 
         if (!spell) {
             if (Settings::debugLogging) {
@@ -297,8 +350,7 @@ namespace Stamina {
         }
 
         // Do not cast Exhausted if Out of Stamina is already active.
-        auto* outOfStaminaEffect = RE::TESDataHandler::GetSingleton()->LookupForm<RE::EffectSetting>(
-            kOutOfStaminaEffect, kOutOfStaminaEffectPlugin);
+        auto* outOfStaminaEffect = spellForms.outOfStaminaEffect;
 
         if (!outOfStaminaEffect) {
             if (Settings::debugLogging) {
@@ -315,8 +367,7 @@ namespace Stamina {
         }
 
         // Do not cast Exhausted while Exhaustion Recovery is active.
-        auto* exhaustionRecoveryEffect = RE::TESDataHandler::GetSingleton()->LookupForm<RE::EffectSetting>(
-            kExhaustionRecoveryEffect, kExhaustionRecoveryEffectPlugin);
+        auto* exhaustionRecoveryEffect = spellForms.exhaustionRecoveryEffect;
 
         if (!exhaustionRecoveryEffect) {
             if (Settings::debugLogging) {
@@ -375,11 +426,8 @@ namespace Stamina {
                 durationValue, 10.0f * (1.0f - (durationValue / 200.0f)));
         }
 
-        auto* moveSpeedNerf = RE::TESDataHandler::GetSingleton()->LookupForm<RE::SpellItem>(
-            kOutOfStaminaMoveSpeedNerf, kOutOfStaminaMoveSpeedNerfPlugin);
-
-        auto* attackSpeedNerf = RE::TESDataHandler::GetSingleton()->LookupForm<RE::SpellItem>(
-            kOutOfStaminaAttackSpeedNerf, kOutOfStaminaAttackSpeedNerfPlugin);
+        auto* moveSpeedNerf = spellForms.moveSpeedNerf;
+        auto* attackSpeedNerf = spellForms.attackSpeedNerf;
 
         if (moveSpeedNerf) {
             caster->CastSpellImmediate(reinterpret_cast<RE::MagicItem*>(moveSpeedNerf), true, actor, 1.0f, false,
@@ -401,8 +449,7 @@ namespace Stamina {
             return;
         }
 
-        auto* spell = RE::TESDataHandler::GetSingleton()->LookupForm<RE::SpellItem>(kExhaustionRecoverySpell,
-                                                                                    kExhaustionRecoveryPlugin);
+        auto* spell = spellForms.exhaustionRecovery;
 
         if (!spell) {
             if (Settings::debugLogging) {
@@ -563,7 +610,7 @@ namespace Stamina {
             logger::info(
                 "Exhaustion Scaling: Actor={}, "
                 "WeaponSkill={:.1f}, ArmorSkill={:.1f}, Variable10={:.1f}",
-                *actor->GetName(), weaponSkill, armorSkill, combinedSkill);
+                actor->GetName() ? actor->GetName() : "<unnamed>", weaponSkill, armorSkill, combinedSkill);
         }
 
         return combinedSkill;

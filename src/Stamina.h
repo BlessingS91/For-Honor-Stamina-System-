@@ -5,6 +5,8 @@ namespace Stamina {
     void Initialize();
 
     void ProcessAttack(RE::Actor* actor, RE::TESForm* attackObject, bool powerAttack, bool leftSwing);
+    // Allows the swing event to reuse its already-computed cost.
+    void ProcessAttack(RE::Actor* actor, RE::TESForm* attackObject, bool powerAttack, bool leftSwing, float cost);
 
     void ProcessAttackStaminaSuppression(RE::Actor* actor);
 

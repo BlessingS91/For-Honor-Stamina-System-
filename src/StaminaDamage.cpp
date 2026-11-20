@@ -15,13 +15,6 @@ namespace StaminaDamage {
 
     namespace {
 
-        struct StaminaModifiers {
-            float multiplier = 1.0f;
-            float lastStaminaPercent = -1.0f;
-        };
-
-        std::unordered_map<RE::Actor*, StaminaModifiers> modifiers;
-
         float GetStaminaPercent(RE::Actor* actor) {
             if (!actor) {
                 return 0.0f;
@@ -52,35 +45,12 @@ namespace StaminaDamage {
         }
     }
 
-    void Update(RE::Actor* actor) {
-        if (!actor) {
-            return;
-        }
-
-        const float staminaPercent = GetStaminaPercent(actor);
-        const float staminaMultiplier = CalculateStaminaMultiplier(actor);
-
-        auto& data = modifiers[actor];
-
-        if (data.lastStaminaPercent < 0.0f || std::abs(staminaPercent - data.lastStaminaPercent) >= 0.01f) {
-            data.lastStaminaPercent = staminaPercent;
-        }
-
-        data.multiplier = staminaMultiplier;
-    }
-
     extern "C" __declspec(dllexport) float GetStaminaMultiplier(RE::Actor* actor) {
         if (!actor) {
             return 1.0f;
         }
 
-        auto it = modifiers.find(actor);
-
-        if (it == modifiers.end()) {
-            return CalculateStaminaMultiplier(actor);
-        }
-
-        return it->second.multiplier;
+        return CalculateStaminaMultiplier(actor);
     }
 
 }
