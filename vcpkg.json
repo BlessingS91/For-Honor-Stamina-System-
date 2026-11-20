@@ -1,17 +1,26 @@
 {
-    "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
-    "name": "for-honor-stamina-system",
-    "version-string": "0.0.1",
-    "dependencies": [
-        "fmt",
-        "rapidcsv",
-        "spdlog",
-        "xbyak",
-        "catch2",
-        "directxmath",
-        "directxtk",
-        "nlohmann-json",
-        "simpleini",
-        "toml11"
-    ]
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "modname",
+  "version-string": "0.1.0.0",
+  "dependencies": [
+    "nlohmann-json",
+    "simpleini",
+    "magic-enum",
+    "fast-cpp-csv-parser",
+    "rsm-binary-io",
+    "spdlog",
+    "xbyak",
+    "rapidcsv",
+    "clib-util",
+    "clib-utils-qtr",
+    "directxtk",
+    "skse-mcp"
+  ],
+  "overrides": [
+    {
+      "name": "fmt",
+      "version": "10.1.0"
+    }
+  ],
+  "builtin-baseline": "74e6536215718009aae747d86d84b78376bf9e09"
 }

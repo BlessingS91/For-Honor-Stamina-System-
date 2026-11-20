@@ -7,7 +7,7 @@
 #include <utility>
 #include <vector>
 
-#include "../Settings.h"
+#include "Settings.h"
 #include "TrueHud.h"
 
 namespace Stamina::Hooks {
@@ -67,8 +67,7 @@ namespace Stamina::Hooks {
             // Keep the original active-effect test (rather than changing
             // which effect states are considered exhausted).
             for (auto* activeEffect : *effects) {
-                if (activeEffect && activeEffect->effect &&
-                    activeEffect->effect->baseEffect == outOfStaminaEffect) {
+                if (activeEffect && activeEffect->effect && activeEffect->effect->baseEffect == outOfStaminaEffect) {
                     return true;
                 }
             }

@@ -1,5 +1,48 @@
-.idea
-.vs
-.vscode/settings.json
-build
-cmake-build*
+# Build directories
+build/
+out/
+cmake-build-*/
+
+# CMake generated files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+install_manifest.txt
+CTestTestfile.cmake
+compile_commands.json
+
+# vcpkg
+vcpkg_installed/
+.vcpkg/
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# VS Code
+.vscode/
+
+# Compiled binaries / objects
+*.dll
+*.lib
+*.exp
+*.obj
+*.o
+*.pdb
+*.ilk
+*.exe
+
+# Generated files
+*.res
+*.pch
+*.ipch
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db

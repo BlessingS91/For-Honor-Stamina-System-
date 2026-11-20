@@ -1,11 +1,11 @@
 #include "Events.h"
+#include "Hooks.h"
 #include "Menu.h"
-#include "MultiHittingBalance.h"
 #include "MovementSpeed.h"
+#include "MultiHittingBalance.h"
 #include "Settings.h"
 #include "Stamina.h"
 #include "TrueHud.h"
-#include "hooks/Hooks.h"
 
 SKSEPluginLoad(const SKSE::LoadInterface* skse) {
     SKSE::Init(skse);

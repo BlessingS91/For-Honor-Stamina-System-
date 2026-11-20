@@ -2,7 +2,7 @@
 
 #include <RE/Skyrim.h>
 
-#include "Includes/TrueHUDAPI.h"
+#include "TrueHUDAPI.h"
 
 namespace TrueHUD {
     void Initialize();
